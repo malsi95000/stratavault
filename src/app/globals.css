@@ -1,0 +1,174 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Thème sombre uniquement : <html class="dark"> active les variantes dark: des composants shadcn/ui. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Palette de la bêta 1.8. Chaque --color-xxx donne les classes bg-xxx, text-xxx,
+  border-xxx, fill-xxx, stroke-xxx… « static » force la génération de toutes les
+  variables, même inutilisées en classes, pour que D3 puisse les lire en CSS.
+*/
+@theme static {
+  /* Interface */
+  --color-bg: #0d1013;
+  --color-ink: #ece7db;
+  --color-mute: #8a949c;
+  --color-line: #2c353c;
+  --color-panel: #141a1f;
+  --color-acc: #f2b134;
+  --color-red: #c9421f;
+  --color-on-acc: #111111;
+  --color-hover: #ffffff08;
+  --color-field: #0b0f12;
+  --color-field-alt: #0c1115;
+  --color-tip: #000000cc;
+  --color-danger: #ff9a80;
+  --color-danger-line: #5a2a20;
+  --color-flyout-shadow: #00000059;
+
+  /* Accueil et connexion */
+  --color-hero-glow: #1b232ac0;
+  --color-logo-bleed: #20272d;
+  --color-card-from: #182127;
+  --color-card-to: #11161a;
+  --color-card-shadow: #090c0f;
+
+  /* Carte */
+  --color-map-ocean: #0a1015;
+  --color-map-edge: #3b4650;
+  --color-map-graticule: #1a232a;
+  --color-map-border: #414d57;
+  --color-map-country: #232b32;
+  --color-map-country-hover: #34434e;
+  --color-map-country-selected: #57697a;
+  --color-map-country-pending: #7a5a17;
+  --color-map-territory: #1a2026;
+  --color-map-capital: #9aa6af;
+  --color-map-zone: #f2b13433;
+  --color-map-zone-draft: #f2b13422;
+  --color-map-zone-selected: #ffffff40;
+  --color-pin-outline: #06141a;
+
+  /* Balises */
+  --color-ping-maritime: #5ee1ff;
+  --color-ping-entreprises: #f0a63a;
+  --color-ping-armes: #e2513a;
+  --color-ping-strategique: #c9d3da;
+  --color-ping-crise: #ff6b9c;
+  --color-ping-base-militaire: #8fd3ff;
+
+  /* Pinceau flux */
+  --color-flux-jaune: #f2b134;
+  --color-flux-orange: #f07828;
+  --color-flux-violet: #a66cff;
+  --color-flux-bleu-fonce: #245a9c;
+  --color-flux-bleu-clair: #65c7e8;
+  --color-flux-rouge: #e2513a;
+  --color-flux-marron: #8b5a3c;
+  --color-flux-gris-clair: #c9d3da;
+  --color-flux-vert: #4caf50;
+  --color-flux-vert-fonce: #176b3a;
+
+  /* Polices */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-brut: Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Black", sans-serif;
+
+  /* Animations */
+  --animate-bob: bob 1.6s ease-in-out infinite;
+  --animate-eq: eq 1s ease-in-out infinite;
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(7px); }
+  }
+  @keyframes eq {
+    0%, 100% { height: 3px; }
+    50% { height: 12px; }
+  }
+}
+
+/*
+  Thème shadcn/ui (src/components/ui) mappé sur la palette ci-dessus.
+  Les composants shadcn utilisent bg-background, text-primary, border-border… ;
+  le reste de l’application garde ses propres tokens (bg-bg, text-ink, border-line…).
+*/
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --card: var(--color-panel);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-panel);
+  --popover-foreground: var(--color-ink);
+  --primary: var(--color-acc);
+  --primary-foreground: var(--color-on-acc);
+  --secondary: var(--color-line);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-line);
+  --muted-foreground: var(--color-mute);
+  --accent: var(--color-line);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-red);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-acc);
+  /* Rayon de base de la bêta (.btn) : 4 px. */
+  --radius: 0.25rem;
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Titres « brutalistes » de la bêta (ancienne classe .brut). */
+@utility brut {
+  font-family: var(--font-brut);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-acc);
+    outline-offset: 2px;
+  }
+  a {
+    color: var(--color-acc);
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
