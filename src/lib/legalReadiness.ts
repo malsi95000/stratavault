@@ -44,11 +44,24 @@ export function legalBlockers(legal: Legal = CURRENT): string[] {
   return blockers;
 }
 
-/** Lève une erreur sur un déploiement de production si les informations légales sont incomplètes. */
+/**
+ * Valeur de LEGAL_LAUNCH_OVERRIDE par laquelle l'éditeur accepte, en connaissance de cause, de publier
+ * malgré des points légaux non réglés : le build passe, mais chaque point est rappelé dans ses journaux.
+ */
+export const LEGAL_OVERRIDE_ACCEPTED = "accepted";
+
+/**
+ * Lève une erreur sur un déploiement de production si les informations légales sont incomplètes,
+ * sauf si l'éditeur l'a accepté explicitement (LEGAL_LAUNCH_OVERRIDE=accepted) : simple avertissement.
+ */
 export function assertLegalReadyForProduction(env: Record<string, string | undefined> = process.env, legal: Legal = CURRENT) {
   if (env.VERCEL_ENV !== "production") return;
   const blockers = legalBlockers(legal);
-  if (blockers.length > 0) {
-    throw new Error(`Informations légales incomplètes (voir docs/legal.md) :\n- ${blockers.join("\n- ")}`);
+  if (blockers.length === 0) return;
+  const list = `\n- ${blockers.join("\n- ")}`;
+  if (env.LEGAL_LAUNCH_OVERRIDE === LEGAL_OVERRIDE_ACCEPTED) {
+    console.warn(`[légal] Mise en production acceptée malgré des points non réglés (voir docs/legal.md) :${list}`);
+    return;
   }
+  throw new Error(`Informations légales incomplètes (voir docs/legal.md) :${list}`);
 }

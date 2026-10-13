@@ -28,6 +28,12 @@ n’est pas désactivé chez Vercel (`VERCEL_MODEL_TRAINING_DISABLED`, point 16)
 pas déclaré avoir communiqué son identité à Vercel (`PUBLISHER_IDENTIFIED_TO_HOST`, point 2). Les
 builds locaux et les déploiements de prévisualisation ne sont pas bloqués.
 
+**Contournement accepté par l’éditeur (13 octobre 2026)** : le site a été publié avant que ces points
+soient réglés, à la demande expresse de l’éditeur, qui en accepte le risque. La variable
+d’environnement Vercel `LEGAL_LAUNCH_OVERRIDE=accepted` (production) fait passer le build en
+rappelant chaque point non réglé dans ses journaux, au lieu de le faire échouer. **Supprimez cette
+variable dès que les points ci-dessous sont réglés** : le garde-fou redevient alors bloquant.
+
 ## Points non vérifiés (repris de `UNVERIFIED` dans `src/lib/legal.ts`)
 
 - Identification de l’éditeur auprès de Vercel (LCEN art. 1-1, II) : les mentions légales ne publient ni le domicile ni le téléphone de l’éditeur, ce qui suppose qu’il ait communiqué à Vercel son nom, ses prénoms, son domicile et son numéro de téléphone ; rien ne le vérifie automatiquement (PUBLISHER_IDENTIFIED_TO_HOST) ; la mise en production est bloquée tant que ce n’est pas fait.
@@ -38,7 +44,7 @@ builds locaux et les déploiements de prévisualisation ne sont pas bloqués.
 - « Model Training » de Vercel (conditions, section 3) : en offre Hobby, Vercel peut utiliser le contenu du compte pour entraîner ses modèles d’IA et le partager à cette fin, sauf désactivation dans les réglages de l’équipe (VERCEL_MODEL_TRAINING_DISABLED) ; la mise en production est bloquée tant que ce n’est pas fait.
 - Inscription active de Vercel Inc. sur la liste officielle du Data Privacy Framework (dataprivacyframework.gov) : déclarée dans la politique de confidentialité de Vercel, non vérifiée sur la liste.
 - Modèles d’e-mail de Supabase Auth : vérifier que les modèles « token_hash » sont en place (docs/supabase.md) ; avec les modèles par défaut, le lien reçu par e-mail passe d’abord par Supabase, qui reçoit alors l’adresse IP et le navigateur de la personne (cas signalé sur /confidentialite).
-- Région d’exécution des fonctions Vercel du projet (à choisir dans les réglages du projet, puis à renseigner dans HOST.functionRegion). Le proxy (src/proxy.ts) s’exécute, lui, dans toutes les régions de Vercel quel que soit ce réglage (HOST.proxyLocation, d’après la documentation de Vercel) ; la page consultée indique moins de régions en offre Hobby sans en donner la liste.
+- Régions du proxy (src/proxy.ts) : les fonctions du projet s’exécutent à Paris (cdg1, réglage du projet Vercel), mais le proxy s’exécute dans toutes les régions de Vercel quel que soit ce réglage (HOST.proxyLocation, d’après la documentation de Vercel) ; la page consultée indique moins de régions en offre Hobby sans en donner la liste.
 - Prestataire d’envoi des e-mails de Supabase et sa localisation (liste des sous-traitants de Supabase, au format PDF).
 
 ## Sources consultées (7 octobre 2026)

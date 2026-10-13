@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CONTACT_IS_PLACEHOLDER, CONTACT_PROVIDER, HOST, PUBLISHER } from "./legal";
-import { assertLegalReadyForProduction, legalBlockers } from "./legalReadiness";
+import { LEGAL_OVERRIDE_ACCEPTED, assertLegalReadyForProduction, legalBlockers } from "./legalReadiness";
 
 const ready = {
   contactIsPlaceholder: false,
@@ -36,6 +36,16 @@ describe("contrôle des informations légales avant la production", () => {
     expect(() => assertLegalReadyForProduction({}, placeholder)).not.toThrow();
     expect(() => assertLegalReadyForProduction({ VERCEL_ENV: "production" }, ready)).not.toThrow();
     expect(() => assertLegalReadyForProduction({ VERCEL_ENV: "production" }, { ...ready, hostDpaApplies: false })).toThrow(/DPA/);
+  });
+
+  it("laisse passer la production seulement sur acceptation explicite, en rappelant chaque point", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = { VERCEL_ENV: "production", LEGAL_LAUNCH_OVERRIDE: LEGAL_OVERRIDE_ACCEPTED };
+    expect(() => assertLegalReadyForProduction(env, placeholder)).not.toThrow();
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/CONTACT_IS_PLACEHOLDER/));
+    // Toute autre valeur ne contourne rien.
+    expect(() => assertLegalReadyForProduction({ ...env, LEGAL_LAUNCH_OVERRIDE: "1" }, placeholder)).toThrow(/CONTACT_IS_PLACEHOLDER/);
+    warn.mockRestore();
   });
 
   it("contrôle les valeurs actuelles de legal.ts", () => {
