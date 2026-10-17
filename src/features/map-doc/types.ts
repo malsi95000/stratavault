@@ -1,6 +1,7 @@
 // Modèle de document d'une carte. Le format JSON est celui de la bêta : un export de la bêta
 // s'importe tel quel (voir schema.ts).
 import type { LonLat } from "@/lib/geo";
+import type { FluxColor, MapColor } from "./palette";
 
 export type { LonLat };
 
@@ -30,45 +31,20 @@ export const DEFAULT_PING_TYPE: PingType = "strategique";
 
 export const isPingType = (v: string): v is PingType => (PING_TYPES as readonly string[]).includes(v);
 
-export const FLUX_COLOR_IDS = [
-  "jaune",
-  "orange",
-  "violet",
-  "bleu-fonce",
-  "bleu-clair",
-  "rouge",
-  "marron",
-  "gris-clair",
-  "vert",
-  "vert-fonce",
-] as const;
-export type FluxColor = (typeof FLUX_COLOR_IDS)[number];
+export {
+  DEFAULT_FLUX_COLOR,
+  FLUX_COLORS,
+  FLUX_COLOR_IDS,
+  FLUX_LABELS,
+  FLUX_TOKENS,
+  HEX_COLOR_PATTERN,
+  colorCss,
+  isFluxColor,
+  isMapColor,
+  parseMapColor,
+} from "./palette";
+export type { FluxColor, HexColor, MapColor } from "./palette";
 
-/** Couleurs de flux dans l'ordre du sélecteur de la bêta. */
-export const FLUX_COLORS: readonly { id: FluxColor; label: string; token: string }[] = [
-  { id: "jaune", label: "Jaune", token: "--color-flux-jaune" },
-  { id: "orange", label: "Orange", token: "--color-flux-orange" },
-  { id: "violet", label: "Violet", token: "--color-flux-violet" },
-  { id: "bleu-fonce", label: "Bleu foncé", token: "--color-flux-bleu-fonce" },
-  { id: "bleu-clair", label: "Bleu clair", token: "--color-flux-bleu-clair" },
-  { id: "rouge", label: "Rouge", token: "--color-flux-rouge" },
-  { id: "marron", label: "Marron", token: "--color-flux-marron" },
-  { id: "gris-clair", label: "Gris clair", token: "--color-flux-gris-clair" },
-  { id: "vert", label: "Vert", token: "--color-flux-vert" },
-  { id: "vert-fonce", label: "Vert foncé", token: "--color-flux-vert-fonce" },
-];
-
-export const FLUX_LABELS: Record<FluxColor, string> = Object.fromEntries(
-  FLUX_COLORS.map((c) => [c.id, c.label]),
-) as Record<FluxColor, string>;
-
-export const FLUX_TOKENS: Record<FluxColor, string> = Object.fromEntries(
-  FLUX_COLORS.map((c) => [c.id, c.token]),
-) as Record<FluxColor, string>;
-
-export const isFluxColor = (v: string): v is FluxColor => (FLUX_COLOR_IDS as readonly string[]).includes(v);
-
-export const DEFAULT_FLUX_COLOR: FluxColor = "jaune";
 export const FLUX_WIDTH_MIN = 1;
 export const FLUX_WIDTH_MAX = 16;
 export const DEFAULT_FLUX_WIDTH = 4;
@@ -109,6 +85,15 @@ export type EntityKind = RefKind | "l" | "flux";
 /** Éléments dotés d'un titre, de notes et d'une date propres. */
 export type FicheKind = "l" | "p" | "o" | "z" | "t";
 
+/**
+ * Format v2 : sortes d'éléments qui peuvent porter des fiches supplémentaires et un style (couleur,
+ * catégorie) : pays, liens, balises, points, zones et textes (pas les traits de flux).
+ */
+export const ELEMENT_KINDS = ["c", "l", "p", "o", "z", "t"] as const;
+export type ElementKind = (typeof ELEMENT_KINDS)[number];
+/** Référence d'un élément : "c:FRA", "l:<id>", "p:<id>"… (clé des fiches et des styles). */
+export type ElementRef = `${ElementKind}:${string}`;
+
 export type Link = { id: string; a: Ref; b: Ref; title: string; note: string; date?: string };
 export type Ping = { id: string; ll: LonLat; type: PingType; title: string; note: string; date?: string };
 export type MapPoint = { id: string; ll: LonLat; title: string; note: string; date?: string };
@@ -119,6 +104,31 @@ export type FluxStroke = { id: string; points: LonLat[]; width: number; opacity?
 /** Fiche technique partagée par tous les traits d'une même couleur. */
 export type FluxFiche = { title?: string; note?: string; date?: string };
 
+/**
+ * Fiche supplémentaire d'un élément (format v2). La fiche principale reste celle du format v1 (notes
+ * et date du pays, titre, notes et date d'un lien…). `category` est l'identifiant d'une catégorie de
+ * la carte.
+ */
+export type ExtraFiche = {
+  id: string;
+  title: string;
+  note: string;
+  date?: string;
+  color?: MapColor;
+  category?: string;
+};
+
+/** Catégorie définie par la carte (format v2). */
+export type Category = { id: string; label: string; color: MapColor };
+
+/** Couleur et catégorie d'un élément (format v2). Jamais vide : un style sans rien est retiré. */
+export type ElementStyle = { color?: MapColor; category?: string };
+
+/**
+ * Document d'une carte. Format v1 (bêta) : les neuf premières clés. Format v2 (bêta 2.1) : `fiches`,
+ * `categories` et `styles`, facultatifs à l'import (un export v1 ou de la bêta se lit toujours) et
+ * toujours présents une fois le document normalisé (schema.ts).
+ */
 export type MapDoc = {
   /** Notes des pays, clé = code pays. */
   notes: Record<string, string>;
@@ -131,10 +141,19 @@ export type MapDoc = {
   texts: MapText[];
   flux: Partial<Record<FluxColor, FluxStroke[]>>;
   fluxFiches: Partial<Record<FluxColor, FluxFiche>>;
+  /** Fiches supplémentaires, par élément (jamais de liste vide). */
+  fiches: Partial<Record<ElementRef, ExtraFiche[]>>;
+  /** Catégories de la carte, dans l'ordre d'affichage. */
+  categories: Category[];
+  /** Couleur et catégorie des éléments. */
+  styles: Partial<Record<ElementRef, ElementStyle>>;
 };
 
 /** Champs modifiables depuis une fiche. */
 export type FicheFields = { title?: string; note?: string; date?: string };
 
-/** Élément ouvert dans le panneau. */
-export type Selection = { k: EntityKind; id: string };
+/**
+ * Élément ouvert dans le panneau. `fiche` : identifiant d'une de ses fiches supplémentaires, ouverte à
+ * la place de sa fiche principale (format v2).
+ */
+export type Selection = { k: EntityKind; id: string; fiche?: string };

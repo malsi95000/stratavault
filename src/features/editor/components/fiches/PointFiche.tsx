@@ -1,12 +1,14 @@
 "use client";
 
+import { erasedFicheCount } from "@/features/map-doc/ops";
 import { fmtLL } from "@/lib/geo";
-import { makeRef } from "@/features/map-doc/refs";
+import { makeElementRef, makeRef } from "@/features/map-doc/refs";
 import { useEditorStore } from "@/features/editor/store";
 import { DateField, DeleteButton, Facts, NotesField, TitleField } from "./fields";
+import ExtraFichesList from "./ExtraFichesList";
 import FicheHeader from "./FicheHeader";
 import Relations from "./Relations";
-import { DELETE_CONFIRM } from "./texts";
+import { deleteConfirm } from "./texts";
 
 /** Fiche d'un point discret (ville, lieu). */
 export default function PointFiche({ id }: { id: string }) {
@@ -32,10 +34,11 @@ export default function PointFiche({ id }: { id: string }) {
         value={point.note}
         onChange={(note) => updateFiche("o", id, { note })}
       />
+      <ExtraFichesList owner={makeElementRef("o", id)} />
       <Relations doc={doc} of={makeRef("o", id)} />
       <DeleteButton
         label="Supprimer ce point"
-        confirmText={DELETE_CONFIRM.o}
+        confirmText={() => deleteConfirm("o", erasedFicheCount(doc, "o", id))}
         onConfirm={() => {
           close();
           erase("o", id);

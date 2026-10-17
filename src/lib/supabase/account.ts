@@ -41,20 +41,33 @@ export async function listMapsForExport(db: ServerSupabaseClient, userId: string
   return data;
 }
 
+/** Contenu et logo d'une carte, en texte JSON tel que la base les écrit (`data::text`, `cover::text`). */
+export type ExportedMapContent = {
+  dataText: string;
+  /** Logo ou aperçu de la carte (colonne cover) ; null s'il n'y en a pas. */
+  coverText: string | null;
+};
+
 /**
- * Contenu d'une carte de `userId`, en texte JSON tel que la base l'écrit (`data::text`) : il est
- * recopié tel quel dans le fichier, sans être décodé en objets (mémoire du serveur bornée par la
+ * Contenu et logo d'une carte de `userId`, en texte JSON tel que la base les écrit : ils sont
+ * recopiés tels quels dans le fichier, sans être décodés en objets (mémoire du serveur bornée par la
  * taille d'une carte). null si la carte n'existe plus (supprimée pendant l'export).
  */
-export async function readMapDataText(db: ServerSupabaseClient, userId: string, mapId: string): Promise<string | null> {
+export async function readMapForExport(
+  db: ServerSupabaseClient,
+  userId: string,
+  mapId: string,
+): Promise<ExportedMapContent | null> {
   const { data, error } = await db
     .from("maps")
-    .select("data::text")
+    .select("data::text, cover::text")
     .eq("user_id", userId)
     .eq("id", mapId)
     .maybeSingle();
   if (error) throw new AccountDataError(error.code);
-  return data ? (data.data as string) : null;
+  if (!data) return null;
+  const row = data as { data: string; cover: string | null };
+  return { dataText: row.data, coverText: row.cover ?? null };
 }
 
 /**

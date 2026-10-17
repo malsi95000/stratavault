@@ -1,6 +1,7 @@
 // Liste de la page « Mon espace stratégique » : tri, date et statistiques de chaque carte (bêta, renderBankPage).
 import { statsOf } from "@/features/map-doc/ops";
 import { parseMapDoc } from "@/features/map-doc/schema";
+import type { MapCover } from "@/features/maps/cover";
 import type { StoredMapEntry } from "@/features/storage";
 
 export type BankItem = {
@@ -11,6 +12,8 @@ export type BankItem = {
   active: boolean;
   /** Date de mise à jour et statistiques : « 03 oct. 2026 — 2 pays annotés · 4 liens · … ». */
   meta: string;
+  /** Logo ou aperçu de la carte (déjà validé par le dépôt) ; absent s'il n'y en a pas. */
+  cover?: MapCover;
 };
 
 /** Statistiques affichées pour une carte que le schéma refuse (elle ne peut pas être ouverte). */
@@ -44,6 +47,7 @@ export function toBankItem(entry: StoredMapEntry, activeMapId: string | null): B
     name: entry.name,
     active: entry.id === activeMapId,
     meta: date ? `${date} — ${stats}` : stats,
+    cover: entry.cover,
   };
 }
 

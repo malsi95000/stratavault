@@ -3,7 +3,7 @@
 // docs/legal.md) : rien n'y est inventé. À relire avant toute mise en ligne.
 
 /** Date de dernière mise à jour des textes légaux (affichée sur chaque page légale). */
-export const LEGAL_UPDATED_ON = "10 octobre 2026";
+export const LEGAL_UPDATED_ON = "17 octobre 2026";
 
 const SCHOOL = { name: "Sciences Po", campus: "Menton" } as const;
 

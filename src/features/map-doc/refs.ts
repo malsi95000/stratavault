@@ -1,8 +1,8 @@
 // Références « type:id » utilisées par les liens (format de la bêta).
 import { countryByCode } from "@/data/countries";
 import { ringCentroid } from "./geometry";
-import { ID_PATTERN, PING_LABELS, REF_KINDS } from "./types";
-import type { Link, LonLat, MapDoc, Ref, RefKind } from "./types";
+import { ELEMENT_KINDS, ID_PATTERN, PING_LABELS, REF_KINDS } from "./types";
+import type { ElementKind, ElementRef, Link, LonLat, MapDoc, Ref, RefKind } from "./types";
 
 export type RefParts = { k: RefKind; id: string };
 
@@ -53,6 +53,47 @@ export function refChecker(doc: Pick<MapDoc, "pings" | "points" | "zones" | "tex
   };
 }
 
+// Format v2 : références des éléments qui portent des fiches supplémentaires et des styles (les liens
+// en plus des extrémités possibles d'un lien). Toujours écrites « type:id » (pas de forme ancienne).
+
+export type ElementParts = { k: ElementKind; id: string };
+
+export function isElementKind(k: string): k is ElementKind {
+  return (ELEMENT_KINDS as readonly string[]).includes(k);
+}
+
+/** Découpe une référence d'élément « type:id » ; null si elle est mal formée. */
+export function parseElementRef(ref: string): ElementParts | null {
+  const i = ref.indexOf(":");
+  if (i < 0) return null;
+  const k = ref.slice(0, i);
+  const id = ref.slice(i + 1);
+  return isElementKind(k) && ID_PATTERN.test(id) ? { k, id } : null;
+}
+
+export function makeElementRef(k: ElementKind, id: string): ElementRef {
+  return `${k}:${id}`;
+}
+
+/** Vérifie beaucoup de références d'éléments (identifiants indexés une fois, comme refChecker). */
+export function elementRefChecker(doc: Pick<MapDoc, "links" | "pings" | "points" | "zones" | "texts">) {
+  const isEnd = refChecker(doc);
+  const links = new Set(doc.links.map((x) => x.id));
+  return (ref: string): ref is ElementRef => {
+    const parts = parseElementRef(ref);
+    if (!parts) return false;
+    return parts.k === "l" ? links.has(parts.id) : isEnd(ref);
+  };
+}
+
+/** Vrai si la référence désigne un élément présent dans le document (ou un pays connu). */
+export function elementExists(doc: MapDoc, ref: string): ref is ElementRef {
+  const parts = parseElementRef(ref);
+  if (!parts) return false;
+  if (parts.k === "l") return doc.links.some((x) => x.id === parts.id);
+  return refExists(doc, ref);
+}
+
 /** Nom affiché d'une extrémité de lien (libellés de la bêta). */
 export function nameOfRef(doc: MapDoc, ref: string): string {
   const parts = parseRef(ref);
@@ -73,6 +114,14 @@ export function nameOfRef(doc: MapDoc, ref: string): string {
   }
   const z = doc.zones.find((x) => x.id === id);
   return z ? z.title || "Zone" : "Zone supprimée";
+}
+
+/** Nom affiché d'un élément qui porte des fiches supplémentaires : celui d'un lien relie ses deux extrémités. */
+export function nameOfElement(doc: MapDoc, ref: ElementRef): string {
+  const parts = parseElementRef(ref);
+  if (parts?.k !== "l") return nameOfRef(doc, ref);
+  const link = doc.links.find((x) => x.id === parts.id);
+  return link ? `${nameOfRef(doc, link.a)} – ${nameOfRef(doc, link.b)}` : "Lien supprimé";
 }
 
 /** Point d'ancrage d'un pays, fourni par l'appelant (première capitale, sinon centroïde de la géométrie). */

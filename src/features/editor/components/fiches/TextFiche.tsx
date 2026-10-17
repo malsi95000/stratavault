@@ -1,11 +1,13 @@
 "use client";
 
-import { makeRef } from "@/features/map-doc/refs";
+import { erasedFicheCount } from "@/features/map-doc/ops";
+import { makeElementRef, makeRef } from "@/features/map-doc/refs";
 import { useEditorStore } from "@/features/editor/store";
 import { DateField, DeleteButton, NotesField, TitleField } from "./fields";
+import ExtraFichesList from "./ExtraFichesList";
 import FicheHeader from "./FicheHeader";
 import Relations from "./Relations";
-import { DELETE_CONFIRM } from "./texts";
+import { deleteConfirm } from "./texts";
 
 /** Fiche d'un petit titre posé sur la carte. */
 export default function TextFiche({ id }: { id: string }) {
@@ -32,10 +34,11 @@ export default function TextFiche({ id }: { id: string }) {
         value={text.note}
         onChange={(note) => updateFiche("t", id, { note })}
       />
+      <ExtraFichesList owner={makeElementRef("t", id)} />
       <Relations doc={doc} of={makeRef("t", id)} />
       <DeleteButton
         label="Supprimer ce texte"
-        confirmText={DELETE_CONFIRM.t}
+        confirmText={() => deleteConfirm("t", erasedFicheCount(doc, "t", id))}
         onConfirm={() => {
           close();
           erase("t", id);

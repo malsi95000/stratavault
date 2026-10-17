@@ -29,6 +29,7 @@ vi.mock("@/features/maps/actions", () => {
     // Carte modifiée sur un autre appareil depuis la version envoyée.
     updateMap: () => (network.conflict ? Promise.resolve({ ok: false as const, error: "conflict" as const }) : ok(info)),
     renameMap: () => ok(null),
+    setMapCover: () => ok(true),
     deleteMap: () => ok(null),
   };
 });

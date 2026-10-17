@@ -4,7 +4,7 @@
 // suppression du compte) dans un autre onglet ferme aussi la session de celui-ci et recharge la page ;
 // de même pour l'effacement des données de démo.
 import { deleteDB } from "idb";
-import { createMap, deleteMap, getMap, listMaps, renameMap, updateMap } from "@/features/maps/actions";
+import { createMap, deleteMap, getMap, listMaps, renameMap, setMapCover, updateMap } from "@/features/maps/actions";
 import { DEMO_MODE, createRepositoryFor, localDbName, purgeAccountCopies, storageKey } from "@/features/storage";
 import type { MapRepository, RemoteMapsApi, StorageMode } from "@/features/storage";
 import { createPersistence } from "./persistence";
@@ -15,7 +15,7 @@ import { useViewStore } from "./viewStore";
 
 type Session = { key: string; mode: StorageMode; repo: MapRepository; persistence: Persistence };
 
-const remote: RemoteMapsApi = { listMaps, getMap, createMap, updateMap, renameMap, deleteMap };
+const remote: RemoteMapsApi = { listMaps, getMap, createMap, updateMap, renameMap, setMapCover, deleteMap };
 
 let session: Session | null = null;
 const listeners = new Set<() => void>();

@@ -1,10 +1,13 @@
 // Validation stricte d'un document importé (fichier, brouillon, banque), compatible avec les exports
 // de la bêta : on reprend normalize() (champs manquants, liens "FRA" → "c:FRA") et on rejette le reste.
+// Format v2 (fiches supplémentaires, catégories, styles) : schemaV2.ts, clés facultatives à l'import.
 import { z } from "@/lib/zod";
 import { countryByCode } from "@/data/countries";
 import { normalizeRing } from "./geometry";
 import { itemCount, pathPointCount } from "./limits";
 import { makeRef, refChecker } from "./refs";
+import { mapDocV2InputShape, normalizeV2, v2Problems } from "./schemaV2";
+import type { Problem } from "./schemaV2";
 import {
   DEFAULT_FLUX_COLOR,
   DEFAULT_PING_TYPE,
@@ -63,6 +66,7 @@ export const mapDocInputSchema = z.object({
   texts: list(textInput).nullish(),
   flux: z.partialRecord(fluxColor, list(fluxInput)).nullish(),
   fluxFiches: z.partialRecord(fluxColor, z.object(fiche)).nullish(),
+  ...mapDocV2InputShape,
 });
 
 export type MapDocInput = z.infer<typeof mapDocInputSchema>;
@@ -178,12 +182,13 @@ function normalize(input: MapDocInput): MapDoc {
     })),
     flux,
     fluxFiches,
+    ...normalizeV2(input),
   };
 }
 
 /** Problèmes de cohérence : identifiants en double, liens invalides ou vers des éléments absents. */
-function problemsOf(doc: MapDoc): { path: (string | number)[]; message: string }[] {
-  const problems: { path: (string | number)[]; message: string }[] = [];
+function problemsOf(doc: MapDoc): Problem[] {
+  const problems: Problem[] = [];
   const unique = (key: string, ids: string[]) => {
     const seen = new Set<string>();
     ids.forEach((x, i) => {
@@ -219,21 +224,35 @@ function problemsOf(doc: MapDoc): { path: (string | number)[]; message: string }
     }
     if (l.a === l.b) problems.push({ path: ["links", i], message: "Un lien relie deux éléments distincts" });
   });
+  // Boucle et non `push(...)` : un fichier hostile peut produire des dizaines de milliers de
+  // problèmes, et les étaler en arguments dépasserait la pile (RangeError).
+  for (const p of v2Problems(doc)) problems.push(p);
   return problems;
 }
+
+/** Nombre de problèmes remontés au plus dans l'erreur de validation (le reste n'apprend rien de plus). */
+const MAX_REPORTED_PROBLEMS = 50;
 
 export const mapDocSchema = z.preprocess(migrateLegacyFluxFiche, mapDocInputSchema).transform((input, ctx): MapDoc => {
   const doc = normalize(input);
   const problems = problemsOf(doc);
   if (problems.length === 0) return doc;
-  for (const p of problems) ctx.issues.push({ code: "custom", input, path: p.path, message: p.message });
+  for (const p of problems.slice(0, MAX_REPORTED_PROBLEMS)) {
+    ctx.issues.push({ code: "custom", input, path: p.path, message: p.message });
+  }
   return z.NEVER;
 });
 
 /** Valide puis normalise un document ; null s'il n'est pas une carte Stratavault valide. */
 export function parseMapDoc(json: unknown): MapDoc | null {
-  const result = mapDocSchema.safeParse(json);
-  return result.success ? result.data : null;
+  try {
+    const result = mapDocSchema.safeParse(json);
+    return result.success ? result.data : null;
+  } catch {
+    // Défense en profondeur : un document hostile ne doit jamais faire échouer l'appelant
+    // (import dans l'éditeur, Server Actions) autrement que par « carte invalide ».
+    return null;
+  }
 }
 
 /** Comme parseMapDoc, à partir du texte d'un fichier. */
@@ -248,6 +267,19 @@ export function parseMapDocText(text: string): MapDoc | null {
 }
 
 export function blankDoc(): MapDoc {
-  return { notes: {}, dates: {}, links: [], pings: [], points: [], zones: [], texts: [], flux: {}, fluxFiches: {} };
+  return {
+    notes: {},
+    dates: {},
+    links: [],
+    pings: [],
+    points: [],
+    zones: [],
+    texts: [],
+    flux: {},
+    fluxFiches: {},
+    fiches: {},
+    categories: [],
+    styles: {},
+  };
 }
 

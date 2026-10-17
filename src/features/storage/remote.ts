@@ -4,6 +4,7 @@
 import { MAX_MAP_BYTES, jsonByteLength } from "@/features/maps/limits";
 import type { MapActionError, MapActionResult, RemoteMap, RemoteMapInfo, RemoteMapSummary } from "@/features/maps/types";
 import type { MapDoc } from "@/features/map-doc/types";
+import type { MapCover } from "@/features/maps/cover";
 import { MapConflictError } from "./types";
 import type { MapBank, MapEntry, StoredMapEntry } from "./types";
 
@@ -22,6 +23,7 @@ export type RemoteMapsApi = {
     expectedRevision: number,
   ) => Promise<MapActionResult<RemoteMapInfo | null>>;
   renameMap: (userId: string, id: string, name: string) => Promise<MapActionResult<RemoteMapInfo | null>>;
+  setMapCover: (userId: string, id: string, cover: MapCover | null) => Promise<MapActionResult<boolean>>;
   deleteMap: (userId: string, id: string) => Promise<MapActionResult<null>>;
 };
 
@@ -68,7 +70,9 @@ export function createRemoteBank(api: RemoteMapsApi, userId: string): MapBank {
   return {
     async list() {
       const maps = await call(() => api.listMaps(userId));
-      return maps.map((map): StoredMapEntry => ({ ...infoOf(map), stats: map.stats, data: null }));
+      return maps.map(
+        (map): StoredMapEntry => ({ ...infoOf(map), stats: map.stats, data: null, ...(map.cover ? { cover: map.cover } : {}) }),
+      );
     },
 
     async get(id) {
@@ -95,6 +99,10 @@ export function createRemoteBank(api: RemoteMapsApi, userId: string): MapBank {
     async rename(id, name) {
       const info = await call(() => api.renameMap(userId, id, name));
       return info && { ...infoOf(info), data: null };
+    },
+
+    async setCover(id, cover) {
+      return call(() => api.setMapCover(userId, id, cover));
     },
 
     async remove(id) {

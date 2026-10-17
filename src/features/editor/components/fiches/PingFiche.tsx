@@ -1,14 +1,16 @@
 "use client";
 
+import { erasedFicheCount } from "@/features/map-doc/ops";
 import { fmtLL } from "@/lib/geo";
-import { makeRef } from "@/features/map-doc/refs";
+import { makeElementRef, makeRef } from "@/features/map-doc/refs";
 import { PING_LABELS, PING_TYPES, isPingType } from "@/features/map-doc/types";
 import { useEditorStore } from "@/features/editor/store";
 import { DateField, DeleteButton, Facts, NotesField, TitleField } from "./fields";
+import ExtraFichesList from "./ExtraFichesList";
 import FicheHeader from "./FicheHeader";
 import Relations from "./Relations";
 import { FIELD, LABEL } from "./styles";
-import { DELETE_CONFIRM } from "./texts";
+import { deleteConfirm } from "./texts";
 
 /** Fiche d'une balise : catégorie (modifiable), position, titre, date, notes et relations. */
 export default function PingFiche({ id }: { id: string }) {
@@ -57,10 +59,11 @@ export default function PingFiche({ id }: { id: string }) {
         value={ping.note}
         onChange={(note) => updateFiche("p", id, { note })}
       />
+      <ExtraFichesList owner={makeElementRef("p", id)} />
       <Relations doc={doc} of={makeRef("p", id)} />
       <DeleteButton
         label="Supprimer cette balise"
-        confirmText={DELETE_CONFIRM.p}
+        confirmText={() => deleteConfirm("p", erasedFicheCount(doc, "p", id))}
         onConfirm={() => {
           close();
           erase("p", id);

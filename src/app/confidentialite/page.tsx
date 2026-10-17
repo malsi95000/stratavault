@@ -133,7 +133,7 @@ export default function ConfidentialitePage() {
           <li>
             de télécharger toutes les données de votre compte (droits d’accès et à la portabilité, articles 15 et 20) :
             un fichier JSON avec la fiche du compte (identifiant, adresse e-mail, dates de création, de confirmation et
-            de dernière connexion) et toutes vos cartes (nom, dates, version, contenu) ;
+            de dernière connexion) et toutes vos cartes (nom, dates, version, logo ou aperçu, contenu) ;
           </li>
           <li>
             de supprimer votre compte (droit à l’effacement, article 17) : après saisie de votre mot de passe et du mot

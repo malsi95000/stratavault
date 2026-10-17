@@ -5,6 +5,7 @@ import type { DBSchema, IDBPDatabase } from "idb";
 import { hasContent, uid } from "@/features/map-doc/ops";
 import { parseMapDoc } from "@/features/map-doc/schema";
 import type { MapDoc } from "@/features/map-doc/types";
+import { parseMapCover } from "@/features/maps/cover";
 import { MapConflictError } from "./types";
 import type { MapEntry, MapRepository, StoredMapEntry, SyncBase } from "./types";
 
@@ -40,6 +41,24 @@ export class LocalDatabaseClosedError extends Error {
     super("Base locale fermée par un autre onglet.");
     this.name = "LocalDatabaseClosedError";
   }
+}
+
+/** Logo ou aperçu refusé (il ne passe pas parseMapCover) : rien n'est écrit. */
+export class InvalidCoverError extends Error {
+  constructor() {
+    super("Logo ou aperçu de carte invalide.");
+    this.name = "InvalidCoverError";
+  }
+}
+
+/** Entrée relue avec son logo revalidé (base locale altérée, version future) : un logo invalide est ignoré. */
+function withValidCover(entry: StoredMapEntry): StoredMapEntry {
+  if (entry.cover === undefined) return entry;
+  const cover = parseMapCover(entry.cover);
+  if (cover) return { ...entry, cover };
+  const copy = { ...entry };
+  delete copy.cover;
+  return copy;
 }
 
 export function createIndexedDbRepository({
@@ -88,11 +107,12 @@ export function createIndexedDbRepository({
     async list() {
       const entries = await (await db()).getAll("maps");
       // String() : une entrée corrompue ne doit pas faire échouer toute la liste.
-      return entries.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
+      return entries.sort((a, b) => String(b.updated).localeCompare(String(a.updated))).map(withValidCover);
     },
 
     async get(id) {
-      return (await (await db()).get("maps", id)) ?? null;
+      const entry = await (await db()).get("maps", id);
+      return entry ? withValidCover(entry) : null;
     },
 
     async create(name, data, id = uid()) {
@@ -112,7 +132,7 @@ export function createIndexedDbRepository({
         await tx.done;
         throw new MapConflictError();
       }
-      const entry: MapEntry = { ...current, data, updated: stamp(), version: nextVersion(current) };
+      const entry: MapEntry = { ...withValidCover(current), data, updated: stamp(), version: nextVersion(current) };
       await Promise.all([tx.store.put(entry), tx.done]);
       return entry;
     },
@@ -126,7 +146,24 @@ export function createIndexedDbRepository({
       }
       const entry: StoredMapEntry = { ...current, name };
       await Promise.all([tx.store.put(entry), tx.done]);
-      return entry;
+      return withValidCover(entry);
+    },
+
+    // Le logo est rangé dans l'entrée de la carte ; ni sa date ni sa version ne changent.
+    async setCover(id, cover) {
+      const valid = cover === null ? null : parseMapCover(cover);
+      if (cover !== null && !valid) throw new InvalidCoverError();
+      const tx = (await db()).transaction("maps", "readwrite");
+      const current = await tx.store.get(id);
+      if (!current) {
+        await tx.done;
+        return false;
+      }
+      const entry: StoredMapEntry = { ...current };
+      if (valid) entry.cover = valid;
+      else delete entry.cover;
+      await Promise.all([tx.store.put(entry), tx.done]);
+      return true;
     },
 
     async remove(id) {

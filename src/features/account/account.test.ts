@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { deleteAccountSchema } from "./schemas";
 import {
   ACCOUNT_EXPORT_FORMAT,
+  ACCOUNT_EXPORT_NOTE,
   EXPORT_FIRST_READ_TIMEOUT_MS,
   EXPORT_IDLE_TIMEOUT_MS,
   ExportStalledError,
@@ -73,12 +74,30 @@ describe("fichier « Télécharger mes données »", () => {
   const map = (id: string, name: string) => ({ id, name, created_at: "c", updated_at: "u", revision: 2 });
 
   it("contient la fiche du compte et chaque carte avec son contenu, en JSON compact", () => {
-    const text = `${exportHead(account, now)}${exportMapEntry(map("m1", "Sahel"), '{"notes": {}}')}]}`;
+    const cover = '{"kind": "icon", "icon": "anchor", "color": "vert"}';
+    const entries = [
+      exportMapEntry(map("m1", "Sahel"), { dataText: '{"notes": {}}', coverText: cover }),
+      exportMapEntry(map("m2", "Arctique"), { dataText: "{}", coverText: null }),
+    ];
+    const text = `${exportHead(account, now)}${entries.join(",")}]}`;
     expect(text).not.toMatch(/\n/);
     const data = JSON.parse(text);
     expect(data).toMatchObject({ format: ACCOUNT_EXPORT_FORMAT, version: 1, exportedAt: "2026-10-09T21:30:00.000Z" });
     expect(data.account).toEqual(account);
-    expect(data.maps).toEqual([{ id: "m1", name: "Sahel", createdAt: "c", updatedAt: "u", revision: 2, data: { notes: {} } }]);
+    // Logo ou aperçu compris (droits d'accès et à la portabilité) : null quand la carte n'en a pas.
+    expect(data.maps).toEqual([
+      {
+        id: "m1",
+        name: "Sahel",
+        createdAt: "c",
+        updatedAt: "u",
+        revision: 2,
+        cover: { kind: "icon", icon: "anchor", color: "vert" },
+        data: { notes: {} },
+      },
+      { id: "m2", name: "Arctique", createdAt: "c", updatedAt: "u", revision: 2, cover: null, data: {} },
+    ]);
+    expect(ACCOUNT_EXPORT_NOTE).toContain("« cover »");
   });
 
   it("flux : une carte lue à la fois, fin signalée une seule fois", async () => {
@@ -88,7 +107,7 @@ describe("fichier « Télécharger mes données »", () => {
       account,
       maps: [map("m1", "Sahel"), map("m2", "Supprimée"), map("m3", "Arctique")],
       now,
-      readData: async (id) => (reads.push(id), id === "m2" ? null : `{"id": "${id}"}`),
+      readData: async (id) => (reads.push(id), id === "m2" ? null : { dataText: `{"id": "${id}"}`, coverText: null }),
       onEnd: () => (ends += 1),
     });
     expect(reads).toEqual([]);
@@ -120,7 +139,7 @@ describe("fichier « Télécharger mes données »", () => {
       account,
       maps: [map("m1", "Sahel")],
       now,
-      readData: async () => "{}",
+      readData: async () => ({ dataText: "{}", coverText: null }),
       onEnd: () => (ends += 1),
       timeouts: { firstReadMs: 20, idleMs: 1_000 },
     });
@@ -137,7 +156,8 @@ describe("fichier « Télécharger mes données »", () => {
       maps: [map("m1", "Sahel"), map("m2", "Arctique")],
       now,
       // Lecture de la base plus longue que le délai entre deux lectures du navigateur.
-      readData: (id) => new Promise((resolve) => setTimeout(() => resolve(`{"id": "${id}"}`), 60)),
+      readData: (id) =>
+        new Promise((resolve) => setTimeout(() => resolve({ dataText: `{"id": "${id}"}`, coverText: null }), 60)),
       onEnd: () => (ends += 1),
       timeouts: { firstReadMs: 1_000, idleMs: 30 },
     });

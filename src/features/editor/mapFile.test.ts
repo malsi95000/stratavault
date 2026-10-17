@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { BETA_EXPORT } from "@/features/map-doc/fixtures";
+import { BETA_EXPORT, V2_EXPORT } from "@/features/map-doc/fixtures";
 import { blankDoc, parseMapDoc } from "@/features/map-doc/schema";
+import { portableDoc } from "@/features/map-doc/schemaV2";
 import type { MapDoc } from "@/features/map-doc/types";
 import {
   EXPORT_FILE_NAME,
@@ -33,8 +34,20 @@ describe("export d'une carte", () => {
     const blob = exportBlob(doc);
     expect(EXPORT_FILE_NAME).toBe("stratavault-carte.json");
     expect(blob.type).toBe(EXPORT_MIME_TYPE);
-    expect(await blob.text()).toBe(JSON.stringify(doc, null, 1));
-    expect(serializeMapDoc(blankDoc())).toBe(JSON.stringify(blankDoc(), null, 1));
+    // Carte sans ajout du format v2 : exactement le format v1 (sans les clés v2 vides).
+    expect(await blob.text()).toBe(JSON.stringify(portableDoc(doc), null, 1));
+    expect(JSON.parse(await blob.text())).not.toHaveProperty("fiches");
+    expect(serializeMapDoc(blankDoc())).toBe(JSON.stringify(portableDoc(blankDoc()), null, 1));
+  });
+
+  it("écrit les ajouts du format v2 utilisés (fiches, catégories, styles)", async () => {
+    const doc = parseMapDoc(V2_EXPORT);
+    if (!doc) throw new Error("fixture invalide");
+    const file = JSON.parse(serializeMapDoc(doc));
+    expect(file.fiches).toEqual(V2_EXPORT.fiches);
+    expect(file.categories).toEqual(V2_EXPORT.categories);
+    expect(file.styles).toEqual(V2_EXPORT.styles);
+    expect(await importedDoc(exportBlob(doc))).toEqual(doc);
   });
 
   it("un export puis un import redonnent la même carte", async () => {

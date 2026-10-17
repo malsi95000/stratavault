@@ -2,7 +2,7 @@
 
 Registre simplifié au sens de l’article 30 du RGPD. Il reprend les traitements décrits aux
 utilisateurs sur `/confidentialite` (source : `src/features/legal/processing.ts`) : les deux doivent
-rester identiques. Dernière mise à jour : 10 octobre 2026.
+rester identiques. Dernière mise à jour : 17 octobre 2026.
 
 ## Responsable du traitement
 
@@ -37,7 +37,7 @@ rester identiques. Dernière mise à jour : 10 octobre 2026.
 - **Finalité** : enregistrer et synchroniser les cartes du compte.
 - **Base légale** : exécution du contrat (art. 6.1.b).
 - **Personnes concernées** : titulaires d’un compte (et, le cas échéant, personnes citées dans leurs notes, sous leur responsabilité).
-- **Données** : nom et contenu des cartes (table `public.maps`), statistiques, dates, version.
+- **Données** : nom, contenu (notes, dates, fiches supplémentaires avec leur titre, couleurs et catégories des éléments, catégories définies dans la carte) et logo ou aperçu des cartes (table `public.maps`, colonnes `data` et `cover`), statistiques, dates, version.
 - **Destinataires** : l’éditeur (administration technique) ; Supabase ; Vercel (exécution du serveur de l’application).
 - **Transferts** : voir sous-traitants.
 - **Durée** : jusqu’à la suppression de la carte ou du compte (`on delete cascade`) ; sauvegardes de la base : aucune en offre gratuite de Supabase, 7 jours en Pro.

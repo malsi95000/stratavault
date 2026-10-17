@@ -2,8 +2,9 @@ import { memo, useMemo } from "react";
 import { PING_TOKENS } from "@/features/map-doc/types";
 import type { PingType } from "@/features/map-doc/types";
 import { useEditorStore } from "@/features/editor/store";
+import { selectVisibility } from "@/features/editor/storeFilters";
 import { pointProjector } from "@/features/editor/projection";
-import { COUNTER_SCALE } from "./shared";
+import { COUNTER_SCALE, shown } from "./shared";
 import type { LayerProps } from "./shared";
 
 /** Épingle de la bêta, pointe en (0, 0). */
@@ -58,16 +59,18 @@ function PingsLayer({ projection }: Pick<LayerProps, "projection">) {
   const pings = useEditorStore((s) => s.doc.pings);
   const selected = useEditorStore((s) => (s.selection?.k === "p" ? s.selection.id : null));
   const pending = useEditorStore((s) => s.pending);
+  const visibility = useEditorStore(selectVisibility);
   const placed = useMemo(
     () => {
-      // Points de la face cachée du globe : non rendus.
+      // Points de la face cachée du globe, et balises écartées par le filtre : non rendus.
       const toScreen = pointProjector(projection);
       return pings.flatMap((p) => {
+        if (!shown(visibility, "p", p.id, selected)) return [];
         const xy = toScreen(p.ll);
         return xy ? [{ id: p.id, type: p.type, title: p.title, x: xy[0], y: xy[1] }] : [];
       });
     },
-    [pings, projection],
+    [pings, projection, visibility, selected],
   );
   return (
     <g>

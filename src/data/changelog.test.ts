@@ -12,14 +12,16 @@ describe("historique des mises à jour", () => {
       "Bêta 1.4",
       "Bêta 1.6",
       "Bêta 1.7",
+      "Bêta 2.0",
       APP_VERSION,
     ]);
   });
 
-  it("la dernière entrée est la version de l'application, datée", () => {
+  it("la dernière entrée est la version de l'application (Bêta 2.1), datée, après la 2.0", () => {
     const last = CHANGELOG.at(-1);
-    expect(last?.version).toBe("Bêta 2.0");
-    expect(last?.date).toBe("3 octobre 2026");
+    expect(last?.version).toBe("Bêta 2.1");
+    expect(last?.date).toBe("17 octobre 2026");
+    expect(CHANGELOG.find((r) => r.version === "Bêta 2.0")?.date).toBe("3 octobre 2026");
   });
 
   it("garde les deux paragraphes de la 1.7 dans la même entrée", () => {

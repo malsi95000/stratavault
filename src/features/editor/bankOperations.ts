@@ -12,7 +12,16 @@ import { MAP_CONFLICT, UNTITLED_MAP } from "./saveStatus";
 
 type BankOperations = Pick<
   Persistence,
-  "needsBankPrompt" | "saveToBank" | "openMap" | "newMap" | "importDoc" | "listMaps" | "renameMap" | "deleteMap"
+  | "needsBankPrompt"
+  | "saveToBank"
+  | "openMap"
+  | "newMap"
+  | "importDoc"
+  | "listMaps"
+  | "renameMap"
+  | "deleteMap"
+  | "readMap"
+  | "setMapCover"
 >;
 
 /** Résultat de la mise à jour de la carte active, dans la file des écritures. */
@@ -166,6 +175,20 @@ export function createBankOperations(core: AutoSave): BankOperations {
         store.getState().setActiveMapId(null);
         await core.forgetActive();
       }
+    },
+
+    async readMap(id) {
+      await core.hydrate();
+      const { activeMapId, doc } = store.getState();
+      if (id === activeMapId) return doc;
+      const entry = await repo.get(id);
+      return entry ? parseMapDoc(entry.data) : null;
+    },
+
+    setMapCover(id, cover) {
+      // Le logo est à part du contenu : il ne passe pas par la file des écritures et ne change ni la
+      // date ni la version de la carte (aucun conflit avec la sauvegarde automatique).
+      return repo.setCover(id, cover);
     },
   };
 }

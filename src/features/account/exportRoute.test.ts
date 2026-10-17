@@ -11,7 +11,16 @@ import { MAX_CONCURRENT_EXPORTS, MAX_EXPORTS_PER_IP, exportSlotCount, resetExpor
 const ALICE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BOB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-type Row = { id: string; user_id: string; name: string; created_at: string; updated_at: string; revision: number; data: unknown };
+type Row = {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  revision: number;
+  cover: unknown;
+  data: unknown;
+};
 
 const row = (id: string, userId: string, name: string): Row => ({
   id,
@@ -20,6 +29,7 @@ const row = (id: string, userId: string, name: string): Row => ({
   created_at: "2026-10-01T10:00:00+00:00",
   updated_at: "2026-10-02T10:00:00+00:00",
   revision: 3,
+  cover: null,
   data: { notes: { FRA: name } },
 });
 
@@ -49,12 +59,13 @@ vi.mock("@/lib/supabase/server", () => ({
           eq: (column: string, value: unknown) => (query.filters.push([column, value]), builder),
           order: () => builder,
           limit: () => builder,
-          /** Contenu d'une carte : `data::text`, comme PostgREST (texte JSON de la base). */
+          /** Contenu et logo d'une carte : `data::text, cover::text`, comme PostgREST (texte JSON de la base). */
           maybeSingle: async () => {
-            expect(query.columns).toBe("data::text");
+            expect(query.columns).toBe("data::text, cover::text");
             if (mocks.dataError.value) return { data: null, error: mocks.dataError.value };
             const [found] = matching();
-            return { data: found ? { data: JSON.stringify(found.data) } : null, error: null };
+            const text = (value: unknown) => (value === null ? null : JSON.stringify(value));
+            return { data: found ? { data: text(found.data), cover: text(found.cover) } : null, error: null };
           },
           then: (resolve: (result: unknown) => unknown) => {
             // Liste des cartes : jamais leur contenu.
@@ -130,7 +141,8 @@ const expectRedirect = (response: Response, location: string) => {
 };
 
 describe("GET /compte/export", () => {
-  it("télécharge le compte et toutes ses cartes, sans cache", async () => {
+  it("télécharge le compte et toutes ses cartes (logo compris), sans cache", async () => {
+    (mocks.rows[0] as Row).cover = { kind: "icon", icon: "anchor", color: "vert" };
     const response = await GET(get());
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
@@ -154,6 +166,7 @@ describe("GET /compte/export", () => {
         createdAt: "2026-10-01T10:00:00+00:00",
         updatedAt: "2026-10-02T10:00:00+00:00",
         revision: 3,
+        cover: { kind: "icon", icon: "anchor", color: "vert" },
         data: { notes: { FRA: "Sahel" } },
       },
     ]);
@@ -165,8 +178,10 @@ describe("GET /compte/export", () => {
     expect(mocks.queries).toHaveLength(2);
     expect(mocks.queries[0].filters).toEqual([["user_id", ALICE]]);
     expect(mocks.queries[0].columns).not.toContain("data");
+    // Ni les logos : lus carte par carte avec le contenu (mémoire du serveur bornée).
+    expect(mocks.queries[0].columns).not.toContain("cover");
     expect(mocks.queries[1]).toEqual({
-      columns: "data::text",
+      columns: "data::text, cover::text",
       filters: [
         ["user_id", ALICE],
         ["id", "11111111-1111-4111-8111-111111111111"],

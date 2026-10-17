@@ -1,6 +1,9 @@
 // Éléments communs aux calques SVG de la carte.
 import type { CSSProperties } from "react";
 import type { GeoPath, GeoPermissibleObjects, GeoProjection } from "d3";
+import { isVisible } from "@/features/filters/visibility";
+import type { Visibility } from "@/features/filters/visibility";
+import type { EntryKind } from "@/features/timeline/entries";
 
 export type LayerProps = {
   projection: GeoProjection;
@@ -21,3 +24,10 @@ export type ShapeLayerProps = {
  */
 export const COUNTER_SCALE: CSSProperties = { transform: "scale(calc(1 / var(--k, 1)))" };
 
+/**
+ * Filtres (EDI-08) : un élément est dessiné s'il passe le filtre, ou s'il est ouvert dans le panneau
+ * (la fiche ouverte reste repérable sur la carte).
+ */
+export function shown(visibility: Visibility | null, kind: EntryKind, id: string, selectedId: string | null): boolean {
+  return id === selectedId || isVisible(visibility, kind, id);
+}

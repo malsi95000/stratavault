@@ -76,7 +76,7 @@ export const CHANGELOG: readonly Release[] = [
       "Contribution de Claude : ajout des outils Pinceau flux et Point, recalibrage du rendu des flux et amélioration de la navigation avec sauvegarde automatique.",
   },
   {
-    version: APP_VERSION,
+    version: "Bêta 2.0",
     date: "3 octobre 2026",
     paragraphs: [
       "Passage d’un fichier unique à une application Next.js. Tous les pays et territoires de la carte deviennent cliquables : Taïwan, le Kosovo, le Sahara occidental, le Groenland, les territoires dépendants et l’Antarctique, ainsi que Tuvalu, l’Abkhazie, l’Ossétie du Sud et la Transnistrie par leur capitale, chacun avec son statut. Les cartes sont enregistrées une par une dans la base de données du navigateur (IndexedDB), sans limite de 5 Mo, et peuvent être rattachées à un compte sécurisé (Supabase : mots de passe hachés avec bcrypt, sessions en cookies httpOnly, données accessibles à leur seul propriétaire).",
@@ -85,5 +85,16 @@ export const CHANGELOG: readonly Release[] = [
     ],
     contribution:
       "Contribution de Claude : portage complet vers Next.js, React et TypeScript, extension du jeu de données aux territoires, nouvelle sauvegarde des cartes, vue Globe, sécurisation des comptes et correction des défauts relevés dans la version précédente.",
+  },
+  {
+    version: APP_VERSION,
+    date: "17 octobre 2026",
+    paragraphs: [
+      "Fiches enrichies : chaque pays, lien, balise, point, zone ou texte peut recevoir plusieurs fiches (titre, date, notes), à ouvrir en plein écran au besoin ; la fiche d’un pays montre sa silhouette en mini-carte. Pays et liens prennent une couleur et une catégorie, définies par la carte (créer, renommer, recolorer, supprimer), et le pinceau flux passe à 22 couleurs nommées.",
+      "Nouvelle vue Frise, à côté du planisphère et du globe : toutes les fiches datées s’y rangent de 1800 à 2100, avec zoom et ouverture de la fiche d’un clic. Un panneau de filtres (période, couleur, catégorie, type) s’applique à la carte comme à la frise, et un bouton « ? » sur chaque outil en donne un court tutoriel.",
+      "Banque de cartes : chaque carte peut recevoir un logo (icône et couleur) ou un aperçu miniature calculé à partir de son contenu. Accueil avec un menu fixe et des animations discrètes, coupées si l’appareil demande de réduire les animations ; fonds topographiques propres à chaque page annexe. Le nouveau format de carte reste compatible : les anciens fichiers s’importent toujours.",
+    ],
+    contribution:
+      "Contribution de Claude : format de carte v2 et contrôles de la base de données, fiches, couleurs et catégories, frise et filtres, tutoriels, logos et aperçus de la banque, menu et animations de l’accueil, fonds des pages annexes.",
   },
 ];

@@ -25,8 +25,10 @@ import {
   continueMap,
   deleteMap,
   renameMap,
+  setCover,
   startNewMap,
 } from "./bankActions";
+import { COVER_SAVE_FAILED } from "./cover/texts";
 import type { BankDeps } from "./bankActions";
 
 type Answers = { ask?: AskAnswer[]; confirm?: boolean[]; prompt?: (string | null)[] };
@@ -253,6 +255,7 @@ function failingPersistence() {
     },
     renameMap: async () => true,
     deleteMap: async () => {},
+    setMapCover: async () => true,
   };
   return { persistence, forced };
 }
@@ -451,5 +454,50 @@ describe("mode compte : modifications d'une carte supprimée depuis un autre app
     expect(await continueMap(deps, other.id)).toBe(true);
     expect(store.getState().activeMapId).toBe(other.id);
     expect(store.getState().doc).toEqual(blankDoc());
+  });
+});
+
+describe("« Logo »", () => {
+  const icon = { kind: "icon", icon: "anchor", color: "bleu" } as const;
+
+  it("enregistre le logo choisi, puis le retire, sans changer la date ni la version de la carte", async () => {
+    const { deps, repo, notes } = await setup();
+    const entry = await repo.create("Sahel", withPing());
+    expect(await setCover(deps, entry.id, icon)).toBe(true);
+    const [withIcon] = await repo.list();
+    expect(withIcon).toMatchObject({ cover: icon, updated: entry.updated, version: entry.version });
+    expect(await setCover(deps, entry.id, null)).toBe(true);
+    expect((await repo.list())[0].cover).toBeUndefined();
+    expect(notes).toEqual([]);
+  });
+
+  it("signale une carte disparue entre-temps, ou une banque inaccessible", async () => {
+    const { deps, notes } = await setup();
+    expect(await setCover(deps, "absente", icon)).toBe(false);
+    expect(notes).toEqual([MAP_MISSING]);
+    const broken: BankDeps = {
+      ...deps,
+      persistence: {
+        ...deps.persistence,
+        setMapCover: async () => {
+          throw new Error("hors ligne");
+        },
+      },
+    };
+    expect(await setCover(broken, "m1", icon)).toBe(false);
+    expect(notes).toEqual([MAP_MISSING, COVER_SAVE_FAILED]);
+  });
+
+  it("l'aperçu part du contenu de l'éditeur pour la carte en cours, de la banque pour les autres", async () => {
+    const { persistence, repo, store } = await setup();
+    const other = await repo.create("Autre", withPing("p9"));
+    await persistence.hydrate();
+    expect(await persistence.saveToBank("En cours")).toBe("created");
+    const activeId = store.getState().activeMapId as string;
+    // Modification pas encore écrite dans la banque : elle figure déjà dans l'aperçu.
+    store.getState().placePing([5, 5]);
+    expect(await persistence.readMap(activeId)).toBe(store.getState().doc);
+    expect(await persistence.readMap(other.id)).toEqual(withPing("p9"));
+    expect(await persistence.readMap("absente")).toBeNull();
   });
 });

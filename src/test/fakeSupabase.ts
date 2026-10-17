@@ -2,7 +2,8 @@
 // Volontairement SANS politique RLS : les tests vérifient que les actions filtrent elles-mêmes
 // sur user_id (les politiques de la base sont testées à part, avec PGlite). Les déclencheurs de la
 // migration (updated_at, revision, stats) sont imités, ainsi que les droits : pas d'INSERT ni
-// d'UPDATE direct du contenu, qui s'écrit par les fonctions create_map et update_map_data (rpc).
+// d'UPDATE direct du contenu, qui s'écrit par les fonctions create_map et update_map_data (rpc), ni
+// du logo, qui s'écrit par set_map_cover (rpc).
 
 export type MapRow = {
   id: string;
@@ -10,6 +11,8 @@ export type MapRow = {
   name: string;
   data: unknown;
   stats: unknown;
+  /** Logo ou aperçu (colonne cover) ; absent : null. */
+  cover?: unknown;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -141,6 +144,14 @@ export function createFakeDb(): FakeDb {
     return { rows: [row], error: null };
   }
 
+  /** Comme public.set_map_cover : true si la carte de l'utilisateur a été modifiée (sans date ni version). */
+  function setCover(userId: string, args: Record<string, unknown>): boolean {
+    const row = db.rows.find((r) => r.id === args.p_id && r.user_id === userId);
+    if (!row) return false;
+    row.cover = args.p_cover === null ? null : JSON.parse(String(args.p_cover));
+    return true;
+  }
+
   db.clientFor = (userId: string) => ({
     from(table: string) {
       if (table !== "maps") throw new Error(`table inconnue : ${table}`);
@@ -154,7 +165,7 @@ export function createFakeDb(): FakeDb {
       const run = (single: "one" | "maybe" | null): Result => {
         const failure = takeFailure();
         if (failure) return { data: null, error: failure };
-        if (operation === "insert" || (operation === "update" && "data" in payload)) return DENIED;
+        if (operation === "insert" || (operation === "update" && ("data" in payload || "cover" in payload))) return DENIED;
         let affected: MapRow[];
         if (operation === "update") {
           db.writes.push(payload);
@@ -212,6 +223,7 @@ export function createFakeDb(): FakeDb {
         const failure = takeFailure();
         if (failure) return { data: null, error: failure };
         db.calls.push({ fn, args });
+        if (fn === "set_map_cover") return { data: setCover(userId, args), error: null };
         let result: RpcResult;
         if (fn === "create_map") result = createRow(userId, args);
         else if (fn === "update_map_data") result = updateRow(userId, args);

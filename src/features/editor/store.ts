@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { createStore } from "zustand/vanilla";
 import type { StateCreator } from "zustand/vanilla";
+import { EMPTY_FILTER } from "@/features/filters/filter";
 import * as ops from "@/features/map-doc/ops";
 import { nameOfRef, refExists } from "@/features/map-doc/refs";
 import { blankDoc } from "@/features/map-doc/schema";
@@ -40,6 +41,10 @@ import {
 } from "./hints";
 import type { Tool } from "./hints";
 import type { Draft } from "./drawing";
+import { fichesSlice, selectedElement } from "./storeFiches";
+import type { FichesSlice } from "./storeFiches";
+import { filtersSlice } from "./storeFilters";
+import type { FiltersSlice } from "./storeFilters";
 
 export type { Tool };
 
@@ -53,9 +58,14 @@ function zoneRefusal(doc: MapDoc, points: readonly LonLat[]): string {
 
 export type { Draft };
 
-export type EditorState = {
+export type EditorState = FichesSlice & FiltersSlice & {
   doc: MapDoc;
   activeMapId: string | null;
+  /**
+   * Incrémenté à chaque carte chargée (hydrate, replaceDoc : ouverture, import, nouvelle carte) : les
+   * vues qui gardent un état propre à la carte (cadrage de la frise) repartent de zéro.
+   */
+  docLoads: number;
   tool: Tool;
   /** Incrémenté à chaque choix d'outil, même identique (la touche F rouvre le menu du pinceau, comme la bêta). */
   toolPicks: number;
@@ -93,10 +103,14 @@ export type EditorState = {
   /** Remplace le document (import, ouverture d'une carte, nouvelle carte). */
   replaceDoc: (doc: MapDoc, activeMapId?: string | null) => void;
 
-  /** Ouvre la fiche d'un élément existant (sans effet sinon). */
-  open: (k: EntityKind, id: string) => void;
+  /**
+   * Ouvre la fiche d'un élément existant (sans effet sinon) ; `fiche` ouvre directement l'une de ses
+   * fiches supplémentaires (frise), à défaut sa fiche principale.
+   */
+  open: (k: EntityKind, id: string, fiche?: string) => void;
+  /** Ferme la fiche (et quitte le plein écran). */
   close: () => void;
-  /** Échap : annule le lien en cours et ferme la fiche. */
+  /** Échap : quitte le plein écran ; sinon annule le lien en cours et ferme la fiche. */
   cancel: () => void;
   cancelPending: () => void;
   /** Outil lien : premier clic mémorise l'extrémité, second clic crée (ou rouvre) le lien. */
@@ -123,8 +137,11 @@ const clamp = (v: number, min: number, max: number) =>
   Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : min;
 
 const initializer: StateCreator<EditorState> = (set, get) => ({
+  ...fichesSlice(set, get),
+  ...filtersSlice(set, get),
   doc: blankDoc(),
   activeMapId: null,
+  docLoads: 0,
   tool: "select",
   toolPicks: 0,
   pingType: DEFAULT_PING_TYPE,
@@ -159,22 +176,43 @@ const initializer: StateCreator<EditorState> = (set, get) => ({
   setSaveStatus: (saveStatus) => set({ saveStatus }),
   setActiveMapId: (activeMapId) => set({ activeMapId }),
   hydrate: (doc, activeMapId) =>
-    set({ doc, activeMapId, hydrated: true, selection: null, pending: null, drawing: null, hint: null }),
-  replaceDoc: (doc, activeMapId) =>
     set((s) => ({
       doc,
-      activeMapId: activeMapId === undefined ? s.activeMapId : activeMapId,
+      activeMapId,
+      docLoads: s.docLoads + 1,
+      hydrated: true,
       selection: null,
       pending: null,
       drawing: null,
       hint: null,
+      panelExpanded: false,
+      categoriesOpen: false,
+      filter: EMPTY_FILTER,
+    })),
+  replaceDoc: (doc, activeMapId) =>
+    set((s) => ({
+      doc,
+      activeMapId: activeMapId === undefined ? s.activeMapId : activeMapId,
+      docLoads: s.docLoads + 1,
+      selection: null,
+      pending: null,
+      drawing: null,
+      hint: null,
+      panelExpanded: false,
+      categoriesOpen: false,
+      filter: EMPTY_FILTER,
     })),
 
-  open: (k, id) => {
-    if (ops.entityExists(get().doc, k, id)) set({ selection: { k, id } });
+  open: (k, id, fiche) => {
+    const { doc } = get();
+    if (!ops.entityExists(doc, k, id)) return;
+    const owner = selectedElement({ k, id });
+    const extra = fiche !== undefined && owner !== null && ops.findExtraFiche(doc, fiche)?.owner === owner;
+    set({ selection: extra ? { k, id, fiche } : { k, id } });
   },
-  close: () => set({ selection: null }),
-  cancel: () => set({ pending: null, hint: null, selection: null }),
+  close: () => set({ selection: null, panelExpanded: false }),
+  cancel: () =>
+    set((s) => (s.panelExpanded ? { panelExpanded: false } : { pending: null, hint: null, selection: null })),
   cancelPending: () => set({ pending: null, hint: null }),
   pick: (ref) => {
     const { pending, doc } = get();
@@ -233,6 +271,7 @@ const initializer: StateCreator<EditorState> = (set, get) => ({
       return {
         doc,
         selection: keep ? s.selection : null,
+        ...(keep ? {} : { panelExpanded: false }),
         ...(pendingGone ? { pending: null, hint: null } : {}),
       };
     }),
@@ -242,6 +281,9 @@ const initializer: StateCreator<EditorState> = (set, get) => ({
     set({ hint: k === "flux" ? HINT_FLUX_ERASED : HINT_ERASED });
   },
 });
+
+/** Vrai si une fiche est ouverte en plein écran : elle recouvre la carte et les barres d'outils. */
+export const isExpanded = (s: EditorState) => s.selection !== null && s.panelExpanded;
 
 export type EditorStore = ReturnType<typeof createEditorStore>;
 

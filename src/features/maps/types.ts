@@ -1,4 +1,5 @@
 // Échanges entre le navigateur et les Server Actions des cartes (mode compte).
+import type { MapCover } from "./cover";
 
 /**
  * Erreurs renvoyées au navigateur, sans détail technique :
@@ -19,8 +20,11 @@ export type MapActionResult<T> = { ok: true; value: T } | { ok: false; error: Ma
  */
 export type RemoteMapInfo = { id: string; name: string; updated: string; revision: number };
 
-/** Élément de la liste : statistiques calculées sur le serveur (null : carte illisible). */
-export type RemoteMapSummary = RemoteMapInfo & { stats: string | null };
+/**
+ * Élément de la liste : statistiques calculées sur le serveur (null : carte illisible) et logo ou
+ * aperçu validé sur le serveur (null : aucun, ou illisible).
+ */
+export type RemoteMapSummary = RemoteMapInfo & { stats: string | null; cover: MapCover | null };
 
 /** Carte complète ; le contenu est à valider par parseMapDoc avant usage. */
 export type RemoteMap = RemoteMapInfo & { data: unknown };

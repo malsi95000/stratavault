@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_VIEW, VIEW_STORAGE_KEY, readStoredView, rehydrateView, safeLocalStorage, useViewStore } from "./viewStore";
+import {
+  DEFAULT_VIEW,
+  VIEW_STORAGE_KEY,
+  readStoredMapView,
+  readStoredView,
+  rehydrateView,
+  safeLocalStorage,
+  useViewStore,
+} from "./viewStore";
 
 /** localStorage simulé (Vitest tourne sans navigateur). */
 function fakeWindow(storage: Partial<Storage>) {
@@ -20,7 +28,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  useViewStore.setState({ view: DEFAULT_VIEW });
+  useViewStore.setState({ view: DEFAULT_VIEW, mapView: DEFAULT_VIEW });
 });
 
 describe("préférence de vue", () => {
@@ -72,5 +80,32 @@ describe("préférence de vue", () => {
     expect(() => rehydrateView()).not.toThrow();
     expect(() => useViewStore.getState().setView("globe")).not.toThrow();
     expect(useViewStore.getState().view).toBe("globe");
+  });
+
+  it("frise : la carte garde sa projection dessous, et la retrouve au retour", async () => {
+    const { data, storage } = memoryStorage();
+    fakeWindow(storage);
+    const { setView } = useViewStore.getState();
+    setView("globe");
+    setView("frise");
+    expect(useViewStore.getState()).toMatchObject({ view: "frise", mapView: "globe" });
+    expect(JSON.parse(data.get(VIEW_STORAGE_KEY)!)).toMatchObject({ state: { view: "frise", mapView: "globe" } });
+
+    const saved = data.get(VIEW_STORAGE_KEY)!;
+    useViewStore.setState({ view: "planisphere", mapView: "planisphere" });
+    data.set(VIEW_STORAGE_KEY, saved);
+    await useViewStore.persist.rehydrate();
+    expect(useViewStore.getState()).toMatchObject({ view: "frise", mapView: "globe" });
+    setView("planisphere");
+    expect(useViewStore.getState()).toMatchObject({ view: "planisphere", mapView: "planisphere" });
+  });
+
+  it("lit la projection enregistrée (préférence d'avant la frise comprise)", () => {
+    expect(readStoredView({ view: "frise" })).toBe("frise");
+    expect(readStoredMapView({ view: "globe" })).toBe("globe");
+    expect(readStoredMapView({ view: "frise", mapView: "globe" })).toBe("globe");
+    expect(readStoredMapView({ view: "frise", mapView: "frise" })).toBe("planisphere");
+    expect(readStoredMapView({ view: "frise" })).toBe("planisphere");
+    expect(readStoredMapView(null)).toBe("planisphere");
   });
 });

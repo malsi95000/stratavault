@@ -46,6 +46,7 @@ function fakeRemote() {
       return guard(() => store.update(id, data, expectedVersion))();
     },
     rename: guard((id: string, name: string) => store.rename(id, name)),
+    setCover: guard((id: string, cover: Parameters<MapBank["setCover"]>[1]) => store.setCover(id, cover)),
     remove: guard((id: string) => store.remove(id)),
   };
   return { bank, store, state };

@@ -33,7 +33,7 @@ function refocusAfterRemoval(list: HTMLUListElement | null, index: number, fallb
  * `remote` : banque du compte (Supabase), sinon banque de ce navigateur (démo).
  */
 export default function Bank({ remote }: { remote: boolean }) {
-  const { state, newMap, continueMap, renameMap, deleteMap } = useBank();
+  const { state, newMap, continueMap, renameMap, deleteMap, changeCover, loadMap } = useBank();
   const listRef = useRef<HTMLUListElement>(null);
   const newMapRef = useRef<HTMLButtonElement>(null);
   // Position de la carte supprimée ; un nouvel objet à chaque suppression.
@@ -77,6 +77,8 @@ export default function Bank({ remote }: { remote: boolean }) {
                 onContinue={() => continueMap(item)}
                 onRename={() => renameMap(item)}
                 onDelete={() => remove(item, index)}
+                loadDoc={() => loadMap(item)}
+                onCover={(cover) => changeCover(item, cover)}
               />
             </li>
           ))}

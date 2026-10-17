@@ -190,7 +190,10 @@ variable dès que les points ci-dessous sont réglés** : le garde-fou redevient
     (fiche du compte et toutes ses cartes, JSON) et de supprimer le compte (immédiat et
     définitif) ; en mode démo, `/espace` permet d’effacer les données du navigateur. Avant la mise
     en ligne, appliquez la migration `20261009120000_delete_my_account.sql` (`docs/supabase.md`,
-    section 3) et vérifiez une suppression de bout en bout avec un compte de test : le compte
+    section 3). Avant de déployer la bêta 2.1, appliquez aussi, dans cet ordre,
+    `20261014120000_maps_doc_v2.sql` puis `20261014120100_maps_cover.sql` : sans la colonne `cover`,
+    la banque du mode compte et le téléchargement des données (qui contient le logo de chaque carte)
+    échouent. Vérifiez une suppression de bout en bout avec un compte de test : le compte
     disparaît de **Authentication → Users**, ses cartes de `public.maps`. La fonction exige un
     mot de passe saisi depuis moins de 5 minutes : un appel direct à l’API avec un jeton plus ancien
     doit être refusé. Restent à traiter par

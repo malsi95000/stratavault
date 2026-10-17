@@ -11,6 +11,7 @@ export function withBank(local: MapRepository, bank: MapBank): MapRepository {
     create: (name, data, id) => bank.create(name, data, id),
     update: (id, data, expectedVersion) => bank.update(id, data, expectedVersion),
     rename: (id, name) => bank.rename(id, name),
+    setCover: (id, cover) => bank.setCover(id, cover),
     remove: (id) => bank.remove(id),
     getDraft: () => local.getDraft(),
     setDraft: (data) => local.setDraft(data),

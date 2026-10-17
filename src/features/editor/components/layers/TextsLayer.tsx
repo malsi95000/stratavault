@@ -1,7 +1,9 @@
 import { memo, useMemo } from "react";
 import { DEFAULT_TEXT_SIZE } from "@/features/map-doc/types";
 import { useEditorStore } from "@/features/editor/store";
+import { selectVisibility } from "@/features/editor/storeFilters";
 import { pointProjector } from "@/features/editor/projection";
+import { shown } from "./shared";
 import type { LayerProps } from "./shared";
 
 /** Petits titres ancrés sur la carte ; ils grossissent avec le zoom (comme la bêta 1.6+). */
@@ -9,16 +11,18 @@ function TextsLayer({ projection }: Pick<LayerProps, "projection">) {
   const texts = useEditorStore((s) => s.doc.texts);
   const selected = useEditorStore((s) => (s.selection?.k === "t" ? s.selection.id : null));
   const pending = useEditorStore((s) => s.pending);
+  const visibility = useEditorStore(selectVisibility);
   const placed = useMemo(
     () => {
-      // Points de la face cachée du globe : non rendus.
+      // Points de la face cachée du globe, et textes écartés par le filtre : non rendus.
       const toScreen = pointProjector(projection);
       return texts.flatMap((t) => {
+        if (!shown(visibility, "t", t.id, selected)) return [];
         const xy = toScreen(t.ll);
         return xy ? [{ id: t.id, title: t.title, size: t.size ?? DEFAULT_TEXT_SIZE, x: xy[0], y: xy[1] }] : [];
       });
     },
-    [texts, projection],
+    [texts, projection, visibility, selected],
   );
   return (
     <g>

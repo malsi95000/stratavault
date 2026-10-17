@@ -6,7 +6,10 @@ import { onGround, routePath } from "@/features/editor/globe3d";
 import type { GlobeView } from "@/features/editor/globe3d";
 import { fluxBudgets, fluxRoute } from "@/features/editor/globeRoutes";
 import { FLAT_FLUX_LAYER_BUDGET, MIN_LINE_POINTS, fitShape, shapeBudgets } from "@/features/editor/shapeBudget";
+import { findFlux } from "@/features/map-doc/ops";
 import { useEditorStore } from "@/features/editor/store";
+import { selectVisibility } from "@/features/editor/storeFilters";
+import { shown } from "./shared";
 import type { ShapeLayerProps } from "./shared";
 
 /** Opacité de l'ombre au sol d'un flux, relative à celle du trait. */
@@ -59,14 +62,19 @@ type FluxLayerProps = ShapeLayerProps & {
 /** Traits du pinceau flux : épaisseur × 5, opacité 0,65 ; ils grossissent avec le zoom. */
 function FluxLayer({ shapePath, globeView }: FluxLayerProps) {
   const flux = useEditorStore((s) => s.doc.flux);
+  const visibility = useEditorStore(selectVisibility);
+  // Couleur du flux ouvert dans le panneau : ses traits restent affichés malgré le filtre.
+  const openColor = useEditorStore((s) => (s.selection?.k === "flux" ? (findFlux(s.doc, s.selection.id)?.color ?? null) : null));
   const strokes = useMemo(
     () =>
       FLUX_COLOR_IDS.flatMap((color) =>
-        (flux[color] ?? []).map(
-          (f): Stroke => ({ id: f.id, color, width: f.width, opacity: f.opacity ?? DEFAULT_FLUX_OPACITY, points: f.points }),
-        ),
+        shown(visibility, "flux", color, openColor)
+          ? (flux[color] ?? []).map(
+              (f): Stroke => ({ id: f.id, color, width: f.width, opacity: f.opacity ?? DEFAULT_FLUX_OPACITY, points: f.points }),
+            )
+          : [],
       ),
-    [flux],
+    [flux, visibility, openColor],
   );
   const globe = Boolean(globeView);
   // Vue globe : nombre de points de tous les tracés borné (voir fluxBudgets).

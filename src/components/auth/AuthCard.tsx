@@ -2,18 +2,23 @@ import type { ReactNode } from "react";
 import BackLink from "@/components/BackLink";
 import Logo from "@/components/Logo";
 import SiteFooter from "@/components/SiteFooter";
+import PageBackdrop from "@/components/backdrop/PageBackdrop";
+import type { BackdropVariant } from "@/features/backdrops/types";
 
 type Props = {
   back: { href: string; label: string };
   title: string;
   lead: string;
   note: string;
+  /** Fond de page : courbes de niveau par défaut (connexion, inscription, mots de passe). */
+  backdrop?: BackdropVariant;
   children: ReactNode;
 };
 
-export default function AuthCard({ back, title, lead, note, children }: Props) {
+export default function AuthCard({ back, title, lead, note, backdrop = "contours", children }: Props) {
   return (
     <>
+      <PageBackdrop variant={backdrop} />
       <main className="mx-auto grid min-h-dvh max-w-[760px] place-items-center px-6 pt-[60px] pb-[90px]">
         <BackLink href={back.href} label={back.label} />
 

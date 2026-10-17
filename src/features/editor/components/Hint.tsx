@@ -1,13 +1,13 @@
 "use client";
 
-import { toolHint } from "@/features/editor/hints";
+import { HINT_FRISE, toolHint } from "@/features/editor/hints";
 import { useEditorStore } from "@/features/editor/store";
 import { useViewStore } from "@/features/editor/viewStore";
 
-/** Barre d'aide en bas : message ponctuel, sinon le texte de l'outil courant (selon la vue). */
+/** Barre d'aide en bas : message ponctuel, sinon le texte de l'outil courant (selon la vue), ou celui de la frise. */
 export default function Hint({ className = "" }: { className?: string }) {
-  const globe = useViewStore((s) => s.view === "globe");
-  const text = useEditorStore((s) => s.hint ?? toolHint(s.tool, globe));
+  const view = useViewStore((s) => s.view);
+  const text = useEditorStore((s) => s.hint ?? (view === "frise" ? HINT_FRISE : toolHint(s.tool, view === "globe")));
   return (
     <div
       aria-live="polite"

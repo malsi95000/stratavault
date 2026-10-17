@@ -4,7 +4,7 @@
 // Le fichier est produit en flux, carte par carte, en JSON compact : le serveur ne garde jamais en
 // mémoire qu'une carte à la fois (au plus 4 Mo dans l'application, 8 Mo dans la base), et le contenu
 // de chaque carte est recopié tel que la base l'écrit, sans être décodé en objets.
-import type { ExportedMapSummary } from "@/lib/supabase/account";
+import type { ExportedMapContent, ExportedMapSummary } from "@/lib/supabase/account";
 import type { AccountDetails } from "@/lib/supabase/user";
 
 export const ACCOUNT_EXPORT_FORMAT = "stratavault-donnees-du-compte";
@@ -12,7 +12,7 @@ export const ACCOUNT_EXPORT_VERSION = 1;
 
 /** Présentation placée en tête du fichier. */
 export const ACCOUNT_EXPORT_NOTE =
-  "Données de votre compte Stratavault : la fiche du compte, puis toutes vos cartes. Le champ « data » de chaque carte est au format des fichiers de l’éditeur : enregistré seul dans un fichier .json, il s’importe avec le bouton « Importer ». Les mots de passe ne sont jamais conservés en clair et ne figurent pas ici.";
+  "Données de votre compte Stratavault : la fiche du compte, puis toutes vos cartes. Le champ « cover » de chaque carte est son logo ou son aperçu (null s’il n’y en a pas). Le champ « data » est au format des fichiers de l’éditeur : enregistré seul dans un fichier .json, il s’importe avec le bouton « Importer ». Les mots de passe ne sont jamais conservés en clair et ne figurent pas ici.";
 
 /** Forme du fichier (les clés apparaissent dans cet ordre). */
 export type AccountExport = {
@@ -33,6 +33,8 @@ export type AccountExport = {
     createdAt: string;
     updatedAt: string;
     revision: number;
+    /** Logo (icône et couleur) ou aperçu SVG de la carte ; null s'il n'y en a pas. */
+    cover: unknown;
     data: unknown;
   }[];
 };
@@ -56,8 +58,11 @@ export function exportHead(account: AccountDetails, now: Date): string {
   return `${JSON.stringify(head).slice(0, -1)},"maps":[`;
 }
 
-/** Une carte du fichier ; `dataText` est son contenu en JSON, tel que la base l'écrit (data::text). */
-export function exportMapEntry(map: ExportedMapSummary, dataText: string): string {
+/**
+ * Une carte du fichier ; `content` porte son logo et son contenu en JSON, tels que la base les écrit
+ * (cover::text, data::text).
+ */
+export function exportMapEntry(map: ExportedMapSummary, { dataText, coverText }: ExportedMapContent): string {
   const fields = {
     id: map.id,
     name: map.name,
@@ -65,7 +70,7 @@ export function exportMapEntry(map: ExportedMapSummary, dataText: string): strin
     updatedAt: map.updated_at,
     revision: map.revision,
   };
-  return `${JSON.stringify(fields).slice(0, -1)},"data":${dataText}}`;
+  return `${JSON.stringify(fields).slice(0, -1)},"cover":${coverText ?? "null"},"data":${dataText}}`;
 }
 
 /** Fin du fichier. */
@@ -95,8 +100,8 @@ type ExportStreamOptions = {
   account: AccountDetails;
   maps: readonly ExportedMapSummary[];
   now: Date;
-  /** Contenu d'une carte en texte JSON ; null si elle n'existe plus (elle est alors omise). */
-  readData: (mapId: string) => Promise<string | null>;
+  /** Contenu et logo d'une carte en texte JSON ; null si elle n'existe plus (elle est alors omise). */
+  readData: (mapId: string) => Promise<ExportedMapContent | null>;
   /** Appelée une seule fois, quand le flux se termine, échoue, est abandonné ou n'est plus lu. */
   onEnd: () => void;
   /** Délais de lecture (pour les tests) ; par défaut EXPORT_FIRST_READ_TIMEOUT_MS et EXPORT_IDLE_TIMEOUT_MS. */
@@ -165,9 +170,9 @@ export function createAccountExportStream({
           while (index < maps.length) {
             const map = maps[index];
             index += 1;
-            const dataText = await readData(map.id);
-            if (dataText === null) continue;
-            controller.enqueue(encoder.encode((written > 0 ? "," : "") + exportMapEntry(map, dataText)));
+            const content = await readData(map.id);
+            if (content === null) continue;
+            controller.enqueue(encoder.encode((written > 0 ? "," : "") + exportMapEntry(map, content)));
             written += 1;
             awaitRead(controller, timeouts.idleMs);
             return;

@@ -1,6 +1,8 @@
 import { memo, useMemo } from "react";
 import { MIN_RING_POINTS, ZONE_LAYER_BUDGET, fitShape, shapeBudgets } from "@/features/editor/shapeBudget";
 import { useEditorStore } from "@/features/editor/store";
+import { selectVisibility } from "@/features/editor/storeFilters";
+import { shown } from "./shared";
 import type { ShapeLayerProps } from "./shared";
 
 /**
@@ -12,6 +14,7 @@ function ZonesLayer({ shapePath }: ShapeLayerProps) {
   const zones = useEditorStore((s) => s.doc.zones);
   const selected = useEditorStore((s) => (s.selection?.k === "z" ? s.selection.id : null));
   const pending = useEditorStore((s) => s.pending);
+  const visibility = useEditorStore(selectVisibility);
   const rings = useMemo(() => {
     const budgets = shapeBudgets(
       zones.map((z) => z.ring),
@@ -21,8 +24,14 @@ function ZonesLayer({ shapePath }: ShapeLayerProps) {
     return zones.map((z, i) => ({ id: z.id, ring: fitShape(z.ring, budgets[i], MIN_RING_POINTS) }));
   }, [zones]);
   const shapes = useMemo(
-    () => rings.map((z) => ({ id: z.id, d: shapePath({ type: "Polygon", coordinates: [z.ring] }) ?? "" })),
-    [rings, shapePath],
+    () =>
+      // Zones écartées par le filtre : non rendues.
+      rings.flatMap((z) =>
+        shown(visibility, "z", z.id, selected)
+          ? [{ id: z.id, d: shapePath({ type: "Polygon", coordinates: [z.ring] }) ?? "" }]
+          : [],
+      ),
+    [rings, shapePath, visibility, selected],
   );
   return (
     <g>

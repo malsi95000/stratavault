@@ -82,7 +82,7 @@ export function useMapZoom(
           if (ev.type === "wheel") ev.preventDefault();
           return false;
         }
-        return zoomAccepts(ev, useEditorStore.getState().tool, useViewStore.getState().view);
+        return zoomAccepts(ev, useEditorStore.getState().tool, useViewStore.getState().mapView);
       })
       .on("zoom", (e: D3ZoomEvent<HTMLDivElement, unknown>) => {
         transformRef.current = e.transform;

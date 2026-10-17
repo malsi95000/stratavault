@@ -1,8 +1,11 @@
 // Opérations sur le document : fonctions pures, le document d'entrée n'est jamais modifié.
 import { countryByCode } from "@/data/countries";
 import { normalizeRing } from "./geometry";
-import { fluxCount, isFluxFull, isFull, lacksPathRoom } from "./limits";
-import { makeRef, refExists } from "./refs";
+import { ficheCount, fluxCount, isFluxFull, isFull, lacksPathRoom } from "./limits";
+import { forgetElements } from "./cascade";
+import { cut, uid } from "./primitives";
+import type { Added } from "./primitives";
+import { makeElementRef, makeRef, refExists } from "./refs";
 import {
   DEFAULT_FLUX_OPACITY,
   FLUX_COLOR_IDS,
@@ -16,6 +19,7 @@ import {
   TEXT_SIZE_MIN,
 } from "./types";
 import type {
+  ElementRef,
   EntityKind,
   FicheFields,
   FicheKind,
@@ -33,26 +37,19 @@ import type {
   Zone,
 } from "./types";
 
-/** Identifiant court, même forme que la bêta (horodatage base 36 + aléa). */
-export function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
 // Les opérations respectent les bornes du schéma (longueurs, coordonnées, nombre d'éléments par
 // collection et pour toute la carte, sommets des tracés : limits.ts) : un document produit par
 // l'éditeur se relit toujours. Un ajout au-delà d'un plafond est refusé (null).
 export { fluxCount, isFluxFull, isFull, lacksPathRoom };
+export { cut, uid };
+export type { Added };
+// Format v2 : fiches supplémentaires, catégories et styles (un module par sujet, réunis ici).
+export * from "./fiches";
+export * from "./categories";
+export * from "./styles";
 const clamp = (v: number, min: number, max: number) => (Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min);
 const lonLat = (p: LonLat): LonLat => [clamp(p[0], -180, 180), clamp(p[1], -90, 90)];
 
-/** Coupe un texte à `max` unités UTF-16, sans couper un caractère en deux. */
-export function cut(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const code = text.charCodeAt(max - 1);
-  return text.slice(0, code >= 0xd800 && code <= 0xdbff ? max - 1 : max);
-}
-
-export type Added = { doc: MapDoc; id: string };
 
 /**
  * Ajoute un lien entre deux extrémités distinctes et existantes ; renvoie le lien existant s'il y en a
@@ -213,18 +210,32 @@ export function removeFluxStroke(doc: MapDoc, id: string): MapDoc {
 
 /**
  * Gomme : supprime un lien, une balise, un point, une zone, un texte ou un trait de flux.
- * Les liens rattachés à l'élément supprimé disparaissent avec lui. Les pays ne sont pas concernés.
+ * Les liens rattachés à l'élément supprimé disparaissent avec lui, et les fiches supplémentaires et
+ * styles de tout ce qui disparaît aussi. Les pays ne sont pas concernés.
  */
 export function erase(doc: MapDoc, k: EntityKind, id: string): MapDoc {
   if (k === "c") return doc;
   if (k === "flux") return removeFluxStroke(doc, id);
-  if (k === "l") return { ...doc, links: doc.links.filter((x) => x.id !== id) };
+  if (k === "l") return forgetElements({ ...doc, links: doc.links.filter((x) => x.id !== id) }, [makeElementRef("l", id)]);
   const ref = makeRef(k, id);
-  const links = doc.links.filter((l) => l.a !== ref && l.b !== ref);
-  if (k === "p") return { ...doc, pings: doc.pings.filter((x) => x.id !== id), links };
-  if (k === "o") return { ...doc, points: doc.points.filter((x) => x.id !== id), links };
-  if (k === "z") return { ...doc, zones: doc.zones.filter((x) => x.id !== id), links };
-  return { ...doc, texts: doc.texts.filter((x) => x.id !== id), links };
+  const gone: ElementRef[] = [ref];
+  const links = doc.links.filter((l) => {
+    const attached = l.a === ref || l.b === ref;
+    if (attached) gone.push(makeElementRef("l", l.id));
+    return !attached;
+  });
+  if (k === "p") return forgetElements({ ...doc, pings: doc.pings.filter((x) => x.id !== id), links }, gone);
+  if (k === "o") return forgetElements({ ...doc, points: doc.points.filter((x) => x.id !== id), links }, gone);
+  if (k === "z") return forgetElements({ ...doc, zones: doc.zones.filter((x) => x.id !== id), links }, gone);
+  return forgetElements({ ...doc, texts: doc.texts.filter((x) => x.id !== id), links }, gone);
+}
+
+/**
+ * Nombre de fiches supplémentaires que `erase` emporterait : celles de l'élément et celles des liens
+ * supprimés avec lui (texte des confirmations et de la gomme).
+ */
+export function erasedFicheCount(doc: MapDoc, k: EntityKind, id: string): number {
+  return ficheCount(doc) - ficheCount(erase(doc, k, id));
 }
 
 /** Vrai si la carte contient quelque chose (proposition d'enregistrement dans la banque). */
@@ -237,7 +248,10 @@ export function hasContent(doc: MapDoc): boolean {
     doc.points.length > 0 ||
     doc.zones.length > 0 ||
     doc.texts.length > 0 ||
-    fluxCount(doc) > 0
+    fluxCount(doc) > 0 ||
+    Object.keys(doc.fiches).length > 0 ||
+    doc.categories.length > 0 ||
+    Object.keys(doc.styles).length > 0
   );
 }
 

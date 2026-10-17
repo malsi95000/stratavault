@@ -1,7 +1,8 @@
 import { memo, useMemo } from "react";
 import { useEditorStore } from "@/features/editor/store";
+import { selectVisibility } from "@/features/editor/storeFilters";
 import { pointProjector } from "@/features/editor/projection";
-import { COUNTER_SCALE } from "./shared";
+import { COUNTER_SCALE, shown } from "./shared";
 import type { LayerProps } from "./shared";
 
 /** Points discrets (villes, lieux), taille constante à l'écran. */
@@ -9,16 +10,18 @@ function PointsLayer({ projection }: Pick<LayerProps, "projection">) {
   const points = useEditorStore((s) => s.doc.points);
   const selected = useEditorStore((s) => (s.selection?.k === "o" ? s.selection.id : null));
   const pending = useEditorStore((s) => s.pending);
+  const visibility = useEditorStore(selectVisibility);
   const placed = useMemo(
     () => {
-      // Points de la face cachée du globe : non rendus.
+      // Points de la face cachée du globe, et points écartés par le filtre : non rendus.
       const toScreen = pointProjector(projection);
       return points.flatMap((p) => {
+        if (!shown(visibility, "o", p.id, selected)) return [];
         const xy = toScreen(p.ll);
         return xy ? [{ id: p.id, title: p.title, x: xy[0], y: xy[1] }] : [];
       });
     },
-    [points, projection],
+    [points, projection, visibility, selected],
   );
   return (
     <g>

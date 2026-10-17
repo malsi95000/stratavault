@@ -3,6 +3,7 @@
 import { MAX_MAP_NAME_LENGTH } from "@/features/storage";
 import type { StoredMapEntry } from "@/features/storage";
 import type { MapDoc } from "@/features/map-doc/types";
+import type { MapCover } from "@/features/maps/cover";
 
 export const bankUpdated = (name: string) => `Mis à jour dans la banque : « ${name} »`;
 export const bankCreated = (name: string) => `Enregistré dans la banque : « ${name} »`;
@@ -79,6 +80,14 @@ export type Persistence = {
   renameMap: (id: string, name: string) => Promise<boolean>;
   /** Supprime une carte ; si c'était la carte active, elle ne l'est plus (le document reste dans l'éditeur). */
   deleteMap: (id: string) => Promise<void>;
+  /**
+   * Contenu d'une carte, pour calculer son aperçu : celui de l'éditeur pour la carte active (il peut
+   * contenir des modifications pas encore envoyées), sinon celui de la banque ; null si la carte
+   * n'existe pas ou est illisible.
+   */
+  readMap: (id: string) => Promise<MapDoc | null>;
+  /** Remplace (ou retire, avec null) le logo d'une carte, sans changer sa date ; false si elle n'existe plus. */
+  setMapCover: (id: string, cover: MapCover | null) => Promise<boolean>;
   /**
    * Vrai si des modifications ne sont ni dans la banque ni dans le brouillon, ou (banque distante)
    * seulement dans le brouillon local. À appeler après flush().

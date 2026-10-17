@@ -60,3 +60,26 @@ export const BETA_EXPORT = {
   // écrit donc dans st.fluxFiches[undefined].
   fluxFiches: { undefined: { title: "Gaz", note: "Gazoducs", date: "2024-01-01" } },
 };
+
+// Carte au format v2 (bêta 2.1) : la carte de la bêta, plus des fiches supplémentaires (pays, lien,
+// balise), des catégories et des styles (pays, lien).
+export const V2_EXPORT = {
+  ...BETA_EXPORT,
+  fiches: {
+    "c:FRA": [
+      { id: "fx1", title: "Dissuasion", note: "Force océanique stratégique", date: "1972-01-01", category: "cat-def" },
+      { id: "fx2", title: "Énergie", note: "", color: "#1f8a70" },
+    ],
+    "l:lv1abc0q7k2": [{ id: "fx3", title: "Traité", note: "1963", color: "corail" }],
+    "p:lv1abd2r8wn": [{ id: "fx4", title: "", note: "Siège" }],
+  },
+  categories: [
+    { id: "cat-def", label: "Défense", color: "rouge" },
+    { id: "cat-eco", label: "Économie", color: "#3d8bfd" },
+  ],
+  styles: {
+    "c:FRA": { color: "bleu", category: "cat-def" },
+    "c:DEU": { category: "cat-eco" },
+    "l:lv1abc0q7k2": { color: "#f2b134" },
+  },
+};

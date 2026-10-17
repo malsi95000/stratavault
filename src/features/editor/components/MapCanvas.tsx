@@ -4,6 +4,7 @@ import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useR
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { geoPath } from "d3";
 import type { GeoProjection } from "d3";
+import { dialogs } from "@/components/dialogs";
 import { countryByCode } from "@/data/countries";
 import { ROUTE_STEP_PX, globeView } from "@/features/editor/globe3d";
 import { detailLevels, globeGeometries, restEpsilon } from "@/features/editor/globeDetail";
@@ -34,6 +35,7 @@ import PingsLayer from "./layers/PingsLayer";
 import PointsLayer from "./layers/PointsLayer";
 import TextsLayer from "./layers/TextsLayer";
 import ZonesLayer from "./layers/ZonesLayer";
+import { gommeConfirm } from "./fiches/texts";
 import Tooltip from "./Tooltip";
 import type { TooltipHandle } from "./Tooltip";
 import { useDrawing } from "./useDrawing";
@@ -69,7 +71,7 @@ export default function MapCanvas({ world }: { world: World | null }) {
   // Échelle du zoom à la fin du dernier geste : résolution du globe au repos et des tracés en relief.
   const [zoomK, setZoomK] = useState(1);
   const tool = useEditorStore((s) => s.tool);
-  const view = useViewStore((s) => s.view);
+  const view = useViewStore((s) => s.mapView);
   const globe = view === "globe";
 
   // Vrai pendant une rotation du globe : la molette est alors ignorée, le cadrage (résolution, calotte
@@ -130,11 +132,12 @@ export default function MapCanvas({ world }: { world: World | null }) {
   useEffect(
     () =>
       useViewStore.subscribe((state, prev) => {
-        if (state.view === prev.view) return;
+        // L'ouverture de la frise ne change pas la carte (elle reste en dessous, telle quelle).
+        if (state.mapView === prev.mapView) return;
         const current = projectionRef.current;
         // Premier affichage (vue mémorisée lue avant que la taille soit connue) : rien à recentrer.
         if (!current) return;
-        if (state.view === "globe") {
+        if (state.mapView === "globe") {
           const svg = svgRef.current;
           const center = svg && screenCenterLL(current, zoom.transformRef.current, svg.clientWidth, svg.clientHeight);
           if (center) {
@@ -153,7 +156,7 @@ export default function MapCanvas({ world }: { world: World | null }) {
   useEffect(() => rehydrateView(), []);
 
   const globeDrag = useGlobeDrag({
-    active: () => dragMode(useEditorStore.getState().tool, useViewStore.getState().view) === "rotate",
+    active: () => dragMode(useEditorStore.getState().tool, useViewStore.getState().mapView) === "rotate",
     start: () => {
       if (!projection || !world) return null;
       const t = zoom.transformRef.current;
@@ -200,9 +203,16 @@ export default function MapCanvas({ world }: { world: World | null }) {
         if (action.tool === "point") return state.placePoint(ll);
         return state.placeText(ll);
       }
-      case "erase":
+      case "erase": {
         // Même opération que les boutons « Supprimer… » des fiches (cascade des liens), plus le texte d'aide.
-        return state.gomme(action.k, action.id);
+        // Effacement immédiat, sauf s'il emporte des fiches supplémentaires : on demande confirmation.
+        const confirmText = gommeConfirm(state.doc, action.k, action.id);
+        if (!confirmText) return state.gomme(action.k, action.id);
+        void dialogs.confirm(confirmText, { confirmLabel: "Supprimer", destructive: true }).then((ok) => {
+          if (ok) useEditorStore.getState().gomme(action.k, action.id);
+        });
+        return;
+      }
       case "none":
         return;
     }

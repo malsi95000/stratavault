@@ -5,9 +5,8 @@ import { relationsOf } from "@/features/map-doc/ops";
 import { nameOfRef, parseRef } from "@/features/map-doc/refs";
 import type { MapDoc, Ref } from "@/features/map-doc/types";
 import { useEditorStore } from "@/features/editor/store";
-import { BTN } from "./styles";
+import { BTN, H3 } from "./styles";
 
-const H3 = "mt-[18px] mb-1.5 text-sm font-semibold text-mute";
 const ROW = `${BTN} w-full text-left`;
 
 /** Bouton qui ouvre la fiche d'une extrémité de lien, sans fermer le panneau. */

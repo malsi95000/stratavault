@@ -1,11 +1,14 @@
 "use client";
 
-import { nameOfRef } from "@/features/map-doc/refs";
+import { erasedFicheCount } from "@/features/map-doc/ops";
+import { makeElementRef, nameOfRef } from "@/features/map-doc/refs";
 import { useEditorStore } from "@/features/editor/store";
 import { DateField, DeleteButton, NotesField, TitleField } from "./fields";
+import ExtraFichesList from "./ExtraFichesList";
 import FicheHeader from "./FicheHeader";
 import { LinkEnds } from "./Relations";
-import { DELETE_CONFIRM } from "./texts";
+import StyleFields from "./StyleFields";
+import { deleteConfirm } from "./texts";
 
 /** Fiche relationnelle d'un lien. */
 export default function LinkFiche({ id }: { id: string }) {
@@ -31,10 +34,12 @@ export default function LinkFiche({ id }: { id: string }) {
         value={link.note}
         onChange={(note) => updateFiche("l", id, { note })}
       />
+      <StyleFields of={makeElementRef("l", id)} />
+      <ExtraFichesList owner={makeElementRef("l", id)} />
       <LinkEnds doc={doc} a={link.a} b={link.b} />
       <DeleteButton
         label="Supprimer ce lien"
-        confirmText={DELETE_CONFIRM.l}
+        confirmText={() => deleteConfirm("l", erasedFicheCount(doc, "l", id))}
         onConfirm={() => {
           close();
           erase("l", id);

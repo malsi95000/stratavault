@@ -1,6 +1,8 @@
 // Export et import d'une carte sous forme de fichier JSON (bêta, lignes 869-881).
-// Le format est celui de la bêta : un export de la bêta s'importe tel quel, et inversement.
+// Le format est celui de la bêta : un export de la bêta s'importe tel quel, et inversement. Les ajouts
+// du format v2 (fiches supplémentaires, catégories, styles) ne sont écrits que s'ils sont utilisés.
 import { parseMapDocText } from "@/features/map-doc/schema";
+import { portableDoc } from "@/features/map-doc/schemaV2";
 import type { MapDoc } from "@/features/map-doc/types";
 
 export const EXPORT_FILE_NAME = "stratavault-carte.json";
@@ -17,9 +19,12 @@ export const IMPORT_CONFIRM = "Remplacer la carte actuelle par le fichier import
 export const EXPORT_TOO_LARGE =
   "Cette carte dépasse 10 Mo : le fichier exporté ne pourra pas être réimporté.";
 
-/** Contenu du fichier exporté (JSON indenté d'un espace, comme la bêta). */
+/**
+ * Contenu du fichier exporté (JSON indenté d'un espace, comme la bêta). Une carte sans ajout du format
+ * v2 s'écrit exactement au format v1.
+ */
 export function serializeMapDoc(doc: MapDoc): string {
-  return JSON.stringify(doc, null, 1);
+  return JSON.stringify(portableDoc(doc), null, 1);
 }
 
 /** Fichier exporté, prêt à être téléchargé. */

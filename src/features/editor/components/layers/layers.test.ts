@@ -311,3 +311,51 @@ describe("vue globe", () => {
     expect(html).toMatch(/d="M[^"]+" data-k="flux" data-id="f1"/);
   });
 });
+
+describe("couleurs et catégories sur la carte (bêta 2.1)", () => {
+  const globe = makeProjection(1280, 800, "globe", rotationCenteredOn([10, 45]));
+  const globePath = geoPath(globe);
+
+  /** France en cyan, Allemagne dans la catégorie « Défense » (rouge), lien l1 en #abcdef, l2 par défaut. */
+  function colored() {
+    let doc = ops.addCategory(sample(), "Défense", "rouge", "k1")!.doc;
+    doc = ops.setElementStyle(doc, "c:FRA", { color: "cyan" });
+    doc = ops.setElementStyle(doc, "c:DEU", { category: "k1" });
+    return ops.setElementStyle(doc, "l:l1", { color: "#abcdef" });
+  }
+
+  it("pays : remplissage à la couleur propre ou de la catégorie, en planisphère et en globe", () => {
+    Object.assign(initial, { doc: colored(), selection: { k: "c", id: "FRA" }, pending: null });
+    for (const [p, geometries] of [
+      [path, undefined],
+      [globePath, globeGeometries(detailLevels(world), globe, null)],
+    ] as const) {
+      const html = renderToStaticMarkup(createElement(CountriesLayer, { world, path: p, geometries }));
+      expect(html).toMatch(/data-id="FRA" class="[^"]*\[fill-opacity:1\] stroke-ink[^"]*" stroke-width="1.6"[^>]*style="fill:var\(--color-flux-cyan\)"/);
+      expect(html).toMatch(/data-id="DEU" class="[^"]*\[fill-opacity:0.72\][^"]*"[^>]*style="fill:var\(--color-flux-rouge\)"/);
+      expect(html).toMatch(/data-id="ESP" class="[^"]*fill-map-country hover:fill-map-country-hover/);
+      expect(html.match(/style="fill:/g)).toHaveLength(2);
+    }
+    // « En attente » l'emporte sur la couleur.
+    Object.assign(initial, { selection: null, pending: "c:FRA" });
+    const pending = renderToStaticMarkup(createElement(CountriesLayer, { world, path }));
+    expect(pending).toMatch(/data-id="FRA" class="[^"]*fill-map-country-pending/);
+    expect(pending.match(/style="fill:/g)).toHaveLength(1);
+  });
+
+  it("liens : trait à la couleur choisie, liseré blanc s'il est sélectionné, arc et ombre colorés en globe", () => {
+    Object.assign(initial, { doc: colored(), selection: { k: "l", id: "l1" }, pending: null });
+    const flat = renderToStaticMarkup(createElement(LinksLayer, { path, countryAnchor: countryAnchorFor(world) }));
+    expect(flat).toContain('style="stroke:#abcdef" stroke-width="3.5"');
+    expect(flat).toContain('stroke-white opacity-80" stroke-width="6"');
+    // l2 garde la couleur d'accent.
+    expect(flat.match(/stroke-acc/g)).toHaveLength(1);
+    expect(flat.match(/stroke-width="14"/g)).toHaveLength(2);
+
+    const props = { path: globePath, countryAnchor: countryAnchorFor(world), globeView: globeView(globe) };
+    const arcs = renderToStaticMarkup(createElement(LinksLayer, props));
+    expect(arcs).toContain('opacity-30" style="stroke:#abcdef" stroke-width="1.5"');
+    expect(arcs).toContain('style="stroke:#abcdef" stroke-width="3.5"');
+    expect(arcs).toContain('stroke-white opacity-80" stroke-width="6"');
+  });
+});

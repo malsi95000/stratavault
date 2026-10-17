@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import BackLink from "@/components/BackLink";
 import SiteFooter from "@/components/SiteFooter";
+import PageBackdrop from "@/components/backdrop/PageBackdrop";
 import { LEGAL_PAGES, LEGAL_UPDATED_ON, type LegalPageHref } from "@/lib/legal";
 import type { SectionLink } from "./LegalSection";
 import TableOfContents from "./TableOfContents";
@@ -22,6 +23,7 @@ export default function LegalDocument({ current, title, lead, sections, children
 
   return (
     <>
+      <PageBackdrop variant="coastlines" />
       <main className="mx-auto max-w-[760px] px-6 pt-8 pb-[70px]">
         <BackLink href="/" label="Retour à l’accueil" />
         <h1 className="brut mt-[30px] mb-3 text-[clamp(28px,5vw,44px)]">{title}</h1>

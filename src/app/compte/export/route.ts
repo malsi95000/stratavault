@@ -10,7 +10,7 @@ import {
 } from "@/features/account/notices";
 import { checkAccountAttempt, checkAttempt, clientIp, trustedProxyHops } from "@/features/auth/rateLimit";
 import { LOGIN_PAGE } from "@/features/auth/redirects";
-import { listMapsForExport, readMapDataText } from "@/lib/supabase/account";
+import { listMapsForExport, readMapForExport } from "@/lib/supabase/account";
 import { createClient } from "@/lib/supabase/server";
 import { verifyAccount } from "@/lib/supabase/user";
 
@@ -91,7 +91,7 @@ export async function GET(request: Request): Promise<Response> {
     now,
     readData: async (mapId) => {
       try {
-        return await readMapDataText(supabase, account.id, mapId);
+        return await readMapForExport(supabase, account.id, mapId);
       } catch (error) {
         console.error("[account] Lecture d’une carte impossible pendant l’export : téléchargement interrompu.");
         throw error;

@@ -68,7 +68,8 @@ export const PROCESSINGS: readonly Processing[] = [
     purpose: "Enregistrer vos cartes stratégiques dans votre compte et les retrouver sur vos appareils.",
     legalBasis: CONTRACT,
     data: [
-      "nom et contenu de chaque carte (notes et dates des pays, liens, balises, points, zones, textes, flux et leurs fiches) ;",
+      "nom et contenu de chaque carte (notes et dates des pays, liens, balises, points, zones, textes, flux et leurs fiches ; fiches supplémentaires avec leur titre ; couleurs et catégories des éléments ; catégories définies dans la carte, avec leur nom et leur couleur) ;",
+      "logo ou aperçu de chaque carte, s’il y en a un (icône et couleur choisies, ou miniature de la carte) ;",
       "nombre d’éléments par carte, dates de création et de modification, numéro de version.",
     ],
     provision: "Facultatif : vous choisissez ce que vous enregistrez. Sans carte enregistrée, il n’y a simplement rien à retrouver.",

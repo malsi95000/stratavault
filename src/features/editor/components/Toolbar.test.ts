@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { FLUX_COLOR_IDS } from "@/features/map-doc/palette";
 import Toolbar from "./Toolbar";
 
 describe("barre d'outils", () => {
@@ -24,7 +25,7 @@ describe("barre d'outils", () => {
     expect(html).toContain('aria-pressed="true" title="Sélection (V) : ouvrir la fiche d&#x27;un pays, d&#x27;un lien, d&#x27;une zone ou d&#x27;une balise"');
   });
 
-  it("propose 6 types de balise, 10 couleurs de flux et les curseurs d'épaisseur et de taille", () => {
+  it("propose 6 types de balise, toutes les couleurs de flux (au moins 20) et les curseurs d'épaisseur et de taille", () => {
     for (const label of [
       "Balise maritime",
       "Balise entreprise",
@@ -36,7 +37,8 @@ describe("barre d'outils", () => {
       expect(html).toContain(`aria-label="${label}"`);
     }
     expect(html).toContain('aria-pressed="true" title="Balise point stratégique"');
-    expect(html.match(/var\(--color-flux-/g)).toHaveLength(10);
+    expect(FLUX_COLOR_IDS.length).toBeGreaterThanOrEqual(20);
+    expect(html.match(/var\(--color-flux-/g)).toHaveLength(FLUX_COLOR_IDS.length);
     expect(html).toContain("Couleur du flux");
     expect(html).toMatch(/Épaisseur : <output[^>]*>4<\/output>/);
     expect(html).toContain('min="1" max="16"');

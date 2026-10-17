@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import BackLink from "@/components/BackLink";
 import SiteFooter from "@/components/SiteFooter";
+import PageBackdrop from "@/components/backdrop/PageBackdrop";
 import AccountBar from "@/components/auth/AccountBar";
 import AuthCard from "@/components/auth/AuthCard";
 import SessionProblem from "@/components/auth/SessionProblem";
@@ -24,6 +25,7 @@ function NoAccount({ lead }: { lead: string }) {
       back={{ href: "/espace", label: "Retour à mon espace" }}
       title="Mon compte"
       lead={lead}
+      backdrop="relief"
       note="En mode démo, « Effacer les données de ce navigateur » se trouve dans votre espace."
     >
       <Link href="/espace" className={textLink}>
@@ -44,6 +46,7 @@ function SignedOut() {
       back={{ href: "/", label: "Retour à l’accueil" }}
       title="Session terminée"
       lead="Vous n’êtes plus connecté. Connectez-vous pour accéder à votre compte."
+      backdrop="relief"
       note="Cette page n’affiche que le compte connecté dans ce navigateur."
     >
       <Link href={LOGIN_PAGE} className={textLink}>
@@ -68,6 +71,7 @@ export default async function ComptePage({ searchParams }: PageProps<"/compte">)
 
   return (
     <>
+      <PageBackdrop variant="relief" />
       <main className="mx-auto max-w-[760px] px-6 pt-8 pb-[90px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <BackLink href="/espace" label="Retour à mon espace" />

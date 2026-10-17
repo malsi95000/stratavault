@@ -21,6 +21,11 @@ export type Database = {
           data_bytes: number;
           /** Version du contenu, incrémentée par un déclencheur (jamais écrite par l'application). */
           revision: number;
+          /**
+           * Logo ou aperçu de la carte (20261014120100_maps_cover.sql), écrit par set_map_cover ;
+           * à valider par parseMapCover avant usage.
+           */
+          cover: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -43,6 +48,12 @@ export type Database = {
         Args: { p_id: string; p_data: string; p_expected_revision: number };
         Returns: MapWriteResult[];
       };
+      /**
+       * Remplace (ou retire, `p_cover` null) le logo ou l'aperçu d'une carte de l'utilisateur
+       * connecté ; `p_cover` : le logo en JSON compact (16 000 octets au plus). false si la carte
+       * n'existe pas (20261014120100_maps_cover.sql).
+       */
+      set_map_cover: { Args: { p_id: string; p_cover: string | null }; Returns: boolean };
       /**
        * Supprime le compte de l'utilisateur connecté (auth.uid()) et, en cascade, ses cartes et ses
        * sessions ; false s'il n'existait déjà plus (20261009120000_delete_my_account.sql).

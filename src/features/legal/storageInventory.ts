@@ -84,7 +84,7 @@ export const STORAGE_INVENTORY: readonly StorageItem[] = [
     name: "stratavault",
     purpose: "Enregistrer les cartes du mode démo dans ce navigateur (sauvegarde automatique et banque de cartes).",
     content:
-      "Cartes de la banque (nom, date, contenu), carte en cours, identifiant de la carte ouverte, et éventuels brouillons illisibles mis de côté.",
+      "Cartes de la banque (nom, date, contenu, logo ou aperçu s’il y en a un : icône et couleur choisies, ou miniature de la carte), carte en cours, identifiant de la carte ouverte, et éventuels brouillons illisibles mis de côté.",
     duration:
       "Jusqu’à ce que vous les supprimiez : banque, « Effacer les données de ce navigateur » (espace, en mode démo), ou données du site dans les réglages du navigateur. Partagée par toutes les personnes qui utilisent la démo dans ce navigateur.",
     issuer: "Page Stratavault (dans votre navigateur)",
@@ -105,8 +105,8 @@ export const STORAGE_INVENTORY: readonly StorageItem[] = [
   {
     kind: "localstorage",
     name: "stratavault-vue",
-    purpose: "Mémoriser la vue choisie dans l’éditeur (planisphère ou globe).",
-    content: "Le nom de la vue.",
+    purpose: "Mémoriser la vue choisie dans l’éditeur (planisphère, globe ou frise).",
+    content: "Le nom de la vue, et celui de la dernière carte affichée (planisphère ou globe).",
     duration:
       "Jusqu’à « Effacer les données de ce navigateur » (espace, en mode démo), ou jusqu’à ce que vous effaciez les données du site dans les réglages du navigateur.",
     issuer: "Page Stratavault (dans votre navigateur)",

@@ -3,6 +3,7 @@ import Link from "next/link";
 import BackLink from "@/components/BackLink";
 import FlashToast from "@/components/FlashToast";
 import SiteFooter from "@/components/SiteFooter";
+import PageBackdrop from "@/components/backdrop/PageBackdrop";
 import AccountBar from "@/components/auth/AccountBar";
 import SessionProblem from "@/components/auth/SessionProblem";
 import ClearDemoData from "@/features/account/components/ClearDemoData";
@@ -26,6 +27,7 @@ export default async function EspacePage({ searchParams }: PageProps<"/espace">)
   return (
     <>
       {notice && <FlashToast message={notice} />}
+      <PageBackdrop variant="graticule" />
       <main className="mx-auto max-w-[760px] px-6 pt-8 pb-[90px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <BackLink href="/" label="Retour à l’accueil" />

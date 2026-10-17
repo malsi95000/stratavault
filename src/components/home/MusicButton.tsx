@@ -5,6 +5,7 @@ import { createMusicPlayer, type MusicPlayer } from "@/lib/music";
 
 const BAR_DELAYS = ["0s", ".2s", ".4s"];
 
+/** Bouton du thème musical, intégré au menu fixe de l'accueil (HomeHeader). */
 export default function MusicButton() {
   const player = useRef<MusicPlayer | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -32,7 +33,7 @@ export default function MusicButton() {
       onClick={toggle}
       aria-pressed={playing}
       aria-label="Musique"
-      className="fixed top-3.5 right-3.5 z-5 flex cursor-pointer items-center gap-[7px] rounded-[20px] border border-line bg-panel py-[7px] pr-3.5 pl-2.5 text-mute aria-pressed:border-mute aria-pressed:text-ink"
+      className="flex shrink-0 cursor-pointer items-center gap-[7px] rounded-[20px] border border-line bg-panel py-[7px] pr-3.5 pl-2.5 text-mute transition-colors duration-150 hover:text-ink aria-pressed:border-mute aria-pressed:text-ink"
     >
       <svg viewBox="0 0 24 24" className="size-4 fill-none stroke-current stroke-[1.8]" aria-hidden="true">
         <path d="M9 18V5l11-2v13" />
@@ -43,7 +44,7 @@ export default function MusicButton() {
         {BAR_DELAYS.map((delay) => (
           <i
             key={delay}
-            className={`block w-[2px] bg-current ${playing ? "animate-eq" : "h-[3px]"}`}
+            className={`block w-[2px] bg-current ${playing ? "animate-eq motion-reduce:h-2 motion-reduce:animate-none" : "h-[3px]"}`}
             style={{ animationDelay: delay }}
           />
         ))}

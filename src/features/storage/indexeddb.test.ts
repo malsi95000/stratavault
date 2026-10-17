@@ -4,7 +4,7 @@ import { addPing } from "@/features/map-doc/ops";
 import { blankDoc } from "@/features/map-doc/schema";
 import { openDB } from "idb";
 import type { MapDoc } from "@/features/map-doc/types";
-import { UNREADABLE_DRAFT_PREFIX, createIndexedDbRepository } from "./indexeddb";
+import { InvalidCoverError, UNREADABLE_DRAFT_PREFIX, createIndexedDbRepository } from "./indexeddb";
 
 let n = 0;
 // Une base neuve par test, et une horloge qui avance d'une minute à chaque écriture.
@@ -116,5 +116,41 @@ describe("dépôt IndexedDB", () => {
     await v1.put("maps", { id: "m1", name: "Carte", updated: "2026-01-01T00:00:00.000Z", version: "1", data: blankDoc() });
     v1.close();
     expect((await createIndexedDbRepository({ dbName: old }).get("m1"))?.name).toBe("Carte");
+  });
+});
+
+describe("dépôt IndexedDB : logo ou aperçu d'une carte", () => {
+  const icon = { kind: "icon" as const, icon: "globe" as const, color: "cyan" as const };
+  const preview = { kind: "preview" as const, svg: '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="2"/></svg>' };
+
+  it("range le logo avec la carte, sans changer sa date ni sa version, et le garde aux écritures suivantes", async () => {
+    const repo = fresh();
+    const a = await repo.create("Carte A", blankDoc());
+    expect(await repo.setCover(a.id, icon)).toBe(true);
+    const listed = (await repo.list())[0];
+    expect(listed).toMatchObject({ id: a.id, updated: a.updated, version: a.version, cover: icon });
+    // Le contenu et le nom changent, le logo reste.
+    expect((await repo.update(a.id, addPing(blankDoc(), [0, 0], "crise")!.doc))?.cover).toEqual(icon);
+    expect((await repo.rename(a.id, "Carte A2"))?.cover).toEqual(icon);
+    expect(await repo.setCover(a.id, preview)).toBe(true);
+    expect((await repo.get(a.id))?.cover).toEqual(preview);
+    expect(await repo.setCover(a.id, null)).toBe(true);
+    expect(await repo.get(a.id)).not.toHaveProperty("cover");
+    expect(await repo.setCover("absent", icon)).toBe(false);
+  });
+
+  it("refuse un logo invalide et ignore un logo illisible relu de la base", async () => {
+    const repo = fresh();
+    const a = await repo.create("Carte A", blankDoc());
+    await expect(repo.setCover(a.id, { ...icon, color: "red" } as never)).rejects.toBeInstanceOf(InvalidCoverError);
+    await expect(
+      repo.setCover(a.id, { kind: "preview", svg: '<svg xmlns="http://www.w3.org/2000/svg" onload="x()"></svg>' }),
+    ).rejects.toBeInstanceOf(InvalidCoverError);
+    // Base altérée à la main : le logo n'est pas rendu.
+    const database = await openDB(`test-${n}`);
+    await database.put("maps", { ...(await database.get("maps", a.id)), cover: { kind: "icon", icon: "x", color: "<b>" } });
+    database.close();
+    expect(await repo.get(a.id)).not.toHaveProperty("cover");
+    expect((await repo.list())[0]).not.toHaveProperty("cover");
   });
 });

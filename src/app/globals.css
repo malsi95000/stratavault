@@ -27,6 +27,8 @@
   --color-danger: #ff9a80;
   --color-danger-line: #5a2a20;
   --color-flyout-shadow: #00000059;
+  /* Contour des pastilles de couleur (palette des flux, catégories). */
+  --color-swatch-edge: #00000066;
 
   /* Accueil et connexion */
   --color-hero-glow: #1b232ac0;
@@ -34,6 +36,13 @@
   --color-card-from: #182127;
   --color-card-to: #11161a;
   --color-card-shadow: #090c0f;
+  /* Menu fixe de l'accueil, une fois la page défilée (translucide). */
+  --color-header: #0d1013e6;
+
+  /* Fonds de page thématiques (ANN-01, src/components/backdrop) : traits très discrets sur --color-bg. */
+  --color-backdrop-line: #1b2329;
+  --color-backdrop-strong: #263038;
+  --color-backdrop-accent: #f2b13433;
 
   /* Carte */
   --color-map-ocean: #0a1015;
@@ -70,6 +79,19 @@
   --color-flux-gris-clair: #c9d3da;
   --color-flux-vert: #4caf50;
   --color-flux-vert-fonce: #176b3a;
+  /* Bêta 2.1 : palette étoffée (src/features/map-doc/palette.ts), contraste ≥ 3:1 sur --color-bg */
+  --color-flux-magenta: #e05ad6;
+  --color-flux-lavande: #b9a6ff;
+  --color-flux-indigo: #7b83eb;
+  --color-flux-bleu: #3d8bfd;
+  --color-flux-cyan: #22d3ee;
+  --color-flux-turquoise: #2ec4b6;
+  --color-flux-menthe: #8ee4af;
+  --color-flux-olive: #a3a83a;
+  --color-flux-citron: #e3ea4c;
+  --color-flux-corail: #ff7f6b;
+  --color-flux-bordeaux: #b8325a;
+  --color-flux-sable: #d8c08e;
 
   /* Polices */
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -78,6 +100,10 @@
   /* Animations */
   --animate-bob: bob 1.6s ease-in-out infinite;
   --animate-eq: eq 1s ease-in-out infinite;
+  /* Accueil (ACC-05) : une seule fois au chargement, coupées par motion-reduce:animate-none. */
+  --animate-title-in: title-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  --animate-logo-in: logo-in 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-rise: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
   @keyframes bob {
     0%, 100% { transform: translateY(0); }
@@ -86,6 +112,26 @@
   @keyframes eq {
     0%, 100% { height: 3px; }
     50% { height: 12px; }
+  }
+  /*
+    Titre : il monte en se dévoilant, puis son ombre rouge se décale comme un tampon. Le découpage
+    finit plus large que la boîte (inset négatif) pour ne pas rogner l'ombre ni le bas des lettres
+    (leading .85), et le remplissage « backwards » le retire à la fin : le titre retrouve exactement
+    son rendu de la bêta.
+  */
+  @keyframes title-in {
+    0% { transform: translateY(0.12em); clip-path: inset(0 0 100% 0); text-shadow: 0 0 0 var(--color-red); }
+    55% { transform: none; clip-path: inset(-0.2em); text-shadow: 0 0 0 var(--color-red); }
+    100% { transform: none; clip-path: inset(-0.2em); text-shadow: 0.04em 0.04em 0 var(--color-red); }
+  }
+  /* Grand logo en filigrane : il se pose en tournant légèrement (transform, sans toucher à translate). */
+  @keyframes logo-in {
+    from { opacity: 0; transform: scale(1.06) rotate(-4deg); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
   }
 }
 
@@ -166,6 +212,13 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /*
+    Accueil : la hauteur du menu fixe (h-14) est réservée en haut de l'écran, pour que ni une ancre
+    ni l'élément qui reçoit le focus au clavier ne passent dessous (WCAG 2.4.11).
+  */
+  html:has([data-home-header]) {
+    scroll-padding-top: 4rem;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

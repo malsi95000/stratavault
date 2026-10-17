@@ -31,11 +31,12 @@ const ENTRY = { id: INFO.id, name: INFO.name, updated: INFO.updated, version: "3
 /** Server Actions simulées : chaque appel est enregistré. */
 function fakeApi(overrides: Partial<RemoteMapsApi> = {}) {
   const api: RemoteMapsApi = {
-    listMaps: vi.fn(async () => ok([{ ...INFO, stats: "1 pays annotés" }])),
+    listMaps: vi.fn(async () => ok([{ ...INFO, stats: "1 pays annotés", cover: null }])),
     getMap: vi.fn(async () => ok({ ...INFO, data: blankDoc() })),
     createMap: vi.fn(async () => ok(INFO)),
     updateMap: vi.fn(async () => ok(INFO)),
     renameMap: vi.fn(async () => ok({ ...INFO, name: "Nouveau" })),
+    setMapCover: vi.fn(async () => ok(true)),
     deleteMap: vi.fn(async () => ok(null)),
     ...overrides,
   };
@@ -49,6 +50,19 @@ describe("banque distante", () => {
   it("liste les cartes sans leur contenu, avec les statistiques du serveur", async () => {
     const bank = createRemoteBank(fakeApi(), USER);
     expect(await bank.list()).toEqual([{ ...ENTRY, stats: "1 pays annotés", data: null }]);
+  });
+
+  it("liste le logo validé par le serveur et transmet un changement de logo", async () => {
+    const cover = { kind: "icon" as const, icon: "anchor" as const, color: "corail" as const };
+    const api = fakeApi({ listMaps: vi.fn(async () => ok([{ ...INFO, stats: null, cover }])) });
+    const bank = createRemoteBank(api, USER);
+    expect(await bank.list()).toEqual([{ ...ENTRY, stats: null, data: null, cover }]);
+    expect(await bank.setCover(INFO.id, cover)).toBe(true);
+    expect(api.setMapCover).toHaveBeenCalledWith(USER, INFO.id, cover);
+    await bank.setCover(INFO.id, null);
+    expect(api.setMapCover).toHaveBeenLastCalledWith(USER, INFO.id, null);
+    const refused = createRemoteBank(fakeApi({ setMapCover: async () => ({ ok: false, error: "invalid" }) }), USER);
+    await expect(refused.setCover(INFO.id, cover)).rejects.toEqual(new RemoteBankError("invalid"));
   });
 
   it("recompose l'entrée écrite sans que le serveur renvoie le contenu", async () => {

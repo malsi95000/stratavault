@@ -7,7 +7,10 @@ import type { EntityKind, MapDoc } from "@/features/map-doc/types";
 import { useEditorStore } from "@/features/editor/store";
 import type { EditorState } from "@/features/editor/store";
 import { Fiche } from "../Panel";
-import { DELETE_CONFIRM } from "./texts";
+import { FLUX_COLOR_IDS } from "@/features/map-doc/palette";
+import { extraFicheTitle, frenchDate } from "./format";
+import { DELETE_CONFIRM, DELETE_EXTRA_FICHE_CONFIRM, deleteConfirm, gommeConfirm } from "./texts";
+import { deleteCategoryConfirm } from "../categories/texts";
 
 // Le rendu serveur lit l'état initial du store (getServerSnapshot de zustand) : on le remplace le temps d'un test.
 const initial = useEditorStore.getInitialState();
@@ -110,5 +113,99 @@ describe("fiches du panneau (textes de la bêta)", () => {
       p: "Supprimer cette balise, ses notes et les liens qui s’y rattachent ?",
       t: "Supprimer ce texte, ses notes et les liens qui s’y rattachent ?",
     });
+    // Les fiches supplémentaires emportées (élément et liens rattachés) sont annoncées.
+    expect(deleteConfirm("l", 0)).toBe(DELETE_CONFIRM.l);
+    expect(deleteConfirm("l", 1)).toBe("Supprimer ce lien et ses notes ? 1 fiche supplémentaire sera aussi supprimée.");
+    expect(deleteConfirm("p", 10)).toBe(`${DELETE_CONFIRM.p} 10 fiches supplémentaires seront aussi supprimées.`);
+  });
+
+  it("gomme : confirmation seulement si des fiches supplémentaires seraient emportées", () => {
+    let doc = ops.addLink(sample(), "p:p1", "c:FRA", "l1")!.doc;
+    expect(gommeConfirm(doc, "p", "p1")).toBeNull();
+    // Fiche d'un lien rattaché : emportée avec la balise.
+    doc = ops.addExtraFiche(doc, "l:l1", {}, "x1")!.doc;
+    expect(gommeConfirm(doc, "p", "p1")).toBe(deleteConfirm("p", 1));
+    expect(gommeConfirm(doc, "l", "l1")).toBe(deleteConfirm("l", 1));
+    expect(gommeConfirm(doc, "o", "o1")).toBeNull();
+    // Ni les pays ni les flux ne portent de fiches supplémentaires.
+    expect(gommeConfirm(doc, "c", "FRA")).toBeNull();
+    expect(gommeConfirm(doc, "flux", "f1")).toBeNull();
+  });
+});
+
+describe("fiches supplémentaires, couleur et catégorie (bêta 2.1)", () => {
+  function withExtras() {
+    let doc = ops.addCategory(sample(), "Défense", "rouge", "k1")!.doc;
+    doc = ops.addExtraFiche(doc, "c:FRA", { title: "Dissuasion", date: "2024-03-05", category: "k1" }, "f1")!.doc;
+    doc = ops.addExtraFiche(doc, "c:FRA", {}, "f2")!.doc;
+    doc = ops.addExtraFiche(doc, "l:l1", { title: "Traité", color: "#abcdef" }, "f3")!.doc;
+    return ops.setElementStyle(doc, "l:l1", { color: "cyan", category: "k1" });
+  }
+  const renderSelection = (doc: MapDoc, selection: { k: EntityKind; id: string; fiche?: string }) => {
+    Object.assign(initial, { doc });
+    return renderToStaticMarkup(createElement(Fiche, { selection }));
+  };
+
+  it("fiche pays : liste des fiches, « Nouvelle fiche », couleur et catégorie, plein écran", () => {
+    const html = render(withExtras(), "c", "FRA");
+    expect(html).toContain(">Fiches</h3>");
+    expect(html).toContain("Dissuasion");
+    expect(html).toContain("Fiche sans titre");
+    expect(html).toContain("5 mars 2024 · Défense");
+    expect(html).toContain("Nouvelle fiche");
+    expect(html).toContain("Sur la carte");
+    expect(html).toContain('<option value="k1">Défense</option>');
+    expect(html).toContain("Gérer les catégories…");
+    expect(html.match(/var\(--color-flux-/g)?.length).toBeGreaterThanOrEqual(FLUX_COLOR_IDS.length);
+    expect(html).toContain('type="color"');
+    expect(html).toContain('aria-label="Plein écran"');
+    expect(html).toContain("Par défaut");
+  });
+
+  it("fiche de lien : couleur propre choisie, catégorie sélectionnée, ses fiches", () => {
+    const html = render(withExtras(), "l", "l1");
+    expect(html).toContain('<option value="k1" selected="">Défense</option>');
+    expect(html).toMatch(/Couleur : <span class="text-ink">Cyan<\/span>/);
+    // Groupe radio : seule la couleur choisie est dans l'ordre de tabulation.
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toContain('role="radio" title="Cyan" aria-label="Cyan" aria-checked="true" tabindex="0"');
+    expect(html.match(/tabindex="0"[^>]*style="background:var\(--color-flux/g)).toHaveLength(1);
+    expect(html).toContain("Traité");
+    expect(html).toContain("Supprimer ce lien");
+  });
+
+  it("fiche supplémentaire ouverte : champs, retour, suppression ; fiche d'un autre élément ignorée", () => {
+    const html = renderSelection(withExtras(), { k: "c", id: "FRA", fiche: "f1" });
+    expect(html).toContain(">Dissuasion</h2>");
+    expect(html).toContain("Fiche de France");
+    expect(html).toContain("Fiche principale");
+    expect(html).toContain('value="2024-03-05"');
+    expect(html).toContain('<option value="k1" selected="">Défense</option>');
+    expect(html).toContain("Celle de la catégorie");
+    expect(html).toContain("Supprimer cette fiche");
+    expect(html).not.toContain("Relations tracées");
+    const link = renderSelection(withExtras(), { k: "l", id: "l1", fiche: "f3" });
+    expect(link).toContain("Fiche de France – Balise maritime");
+    expect(link).toContain("Autre couleur (#abcdef)");
+    expect(renderSelection(withExtras(), { k: "l", id: "l1", fiche: "f1" })).toBe("");
+  });
+
+  it("balises, points, zones et textes ont aussi leurs fiches ; pas les flux", () => {
+    for (const [k, id] of [["p", "p1"], ["o", "o1"], ["z", "z1"], ["t", "t1"]] as const) {
+      expect(render(sample(), k, id), k).toContain("Nouvelle fiche");
+      expect(render(sample(), k, id), k).not.toContain("Sur la carte");
+    }
+    expect(render(sample(), "flux", "f1")).not.toContain("Nouvelle fiche");
+  });
+
+  it("textes : titre par défaut, dates en français, confirmations", () => {
+    expect(extraFicheTitle({ title: "  " })).toBe("Fiche sans titre");
+    expect(frenchDate("2026-10-03")).toBe("3 oct. 2026");
+    expect(frenchDate("")).toBe("");
+    expect(frenchDate("vers 1850")).toBe("vers 1850");
+    expect(DELETE_EXTRA_FICHE_CONFIRM).toBe("Supprimer cette fiche, son titre et ses notes ?");
+    expect(deleteCategoryConfirm("Défense", 0)).toBe("Supprimer la catégorie «\u00a0Défense\u00a0» ?");
+    expect(deleteCategoryConfirm("Défense", 1)).toContain("L’élément ou la fiche qui la porte n’aura plus de catégorie.");
+    expect(deleteCategoryConfirm("Défense", 3)).toContain("Les 3 éléments ou fiches qui la portent");
   });
 });

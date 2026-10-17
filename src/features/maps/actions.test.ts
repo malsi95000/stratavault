@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COUNTRIES } from "@/data/countries";
 import { addPing } from "@/features/map-doc/ops";
+import { V2_EXPORT } from "@/features/map-doc/fixtures";
 import { blankDoc, parseMapDoc } from "@/features/map-doc/schema";
+import { portableDoc } from "@/features/map-doc/schemaV2";
 import type { MapDoc } from "@/features/map-doc/types";
 import { classifyDbError } from "@/lib/supabase/maps";
 import { createFakeDb } from "@/test/fakeSupabase";
@@ -44,6 +46,8 @@ const renameMap = (id: string, name: string) => actions.renameMap(me(), id, name
 const deleteMap = (id: string) => actions.deleteMap(me(), id);
 
 const withPing = (): MapDoc => addPing(blankDoc(), [2.35, 48.85], "crise", "p1")!.doc;
+/** Contenu tel qu'il est enregistré : sans les clés v2 vides (format v1 si rien de nouveau). */
+const stored = (doc: MapDoc) => portableDoc(doc);
 
 let db: FakeDb;
 beforeEach(() => {
@@ -100,7 +104,7 @@ describe("Server Actions des cartes", () => {
     ]);
     for (const result of results) expect(result).toEqual({ ok: false, error: "unauthorized" });
     expect(db.rows.map((row) => row.user_id)).toEqual([ALICE]);
-    expect(db.rows[0].data).toEqual(withPing());
+    expect(db.rows[0].data).toEqual(stored(withPing()));
   });
 
   it("créent, listent, relisent, renomment, mettent à jour et suppriment une carte", async () => {
@@ -113,10 +117,10 @@ describe("Server Actions des cartes", () => {
     const list = await listMaps();
     expect(list).toEqual({
       ok: true,
-      value: [{ ...info, stats: "0 pays annotés · 0 liens · 1 balises · 0 zones · 0 textes" }],
+      value: [{ ...info, stats: "0 pays annotés · 0 liens · 1 balises · 0 zones · 0 textes", cover: null }],
     });
 
-    expect(await getMap(info.id)).toEqual({ ok: true, value: { ...info, data: withPing() } });
+    expect(await getMap(info.id)).toEqual({ ok: true, value: { ...info, data: stored(withPing()) } });
 
     const renamed = await renameMap(info.id, "Sahel 2026");
     expect(renamed.ok && renamed.value?.name).toBe("Sahel 2026");
@@ -127,7 +131,7 @@ describe("Server Actions des cartes", () => {
     expect(updated.ok && updated.value).toMatchObject({ id: info.id, name: "Sahel 2026" });
     expect(updated.ok && updated.value!.updated > info.updated).toBe(true);
     expect(updated.ok && updated.value!.revision).toBe(2);
-    expect(db.rows[0].data).toEqual(blankDoc());
+    expect(db.rows[0].data).toEqual(stored(blankDoc()));
     const relisted = await listMaps();
     expect(relisted.ok && relisted.value[0].stats).toBe("0 pays annotés · 0 liens · 0 balises · 0 zones · 0 textes");
 
@@ -141,7 +145,7 @@ describe("Server Actions des cartes", () => {
     expect((await actions.updateMap(ALICE, info.id, blankDoc(), 1)).ok).toBe(true);
     // L'appareil A, resté sur la révision 1, ne l'écrase pas.
     expect(await actions.updateMap(ALICE, info.id, withPing(), 1)).toEqual({ ok: false, error: "conflict" });
-    expect(db.rows[0]).toMatchObject({ data: blankDoc(), revision: 2 });
+    expect(db.rows[0]).toMatchObject({ data: stored(blankDoc()), revision: 2 });
     // À la bonne version, l'écriture passe.
     const next = await actions.updateMap(ALICE, info.id, withPing(), 2);
     expect(next.ok && next.value?.revision).toBe(3);
@@ -152,7 +156,7 @@ describe("Server Actions des cartes", () => {
         error: "conflict",
       });
     }
-    expect(db.rows[0]).toMatchObject({ data: withPing(), revision: 3 });
+    expect(db.rows[0]).toMatchObject({ data: stored(withPing()), revision: 3 });
     // Carte supprimée : null (pas un conflit).
     await deleteMap(info.id);
     expect(await actions.updateMap(ALICE, info.id, withPing(), 3)).toEqual({ ok: true, value: null });
@@ -171,7 +175,7 @@ describe("Server Actions des cartes", () => {
     await deleteMap(alice.id);
 
     const aliceRow = db.rows.find((row) => row.id === alice.id)!;
-    expect(aliceRow).toMatchObject({ user_id: ALICE, name: "Carte d'Alice", data: withPing() });
+    expect(aliceRow).toMatchObject({ user_id: ALICE, name: "Carte d'Alice", data: stored(withPing()) });
     expect(db.rows.find((row) => row.id === bob.id)?.user_id).toBe(BOB);
   });
 
@@ -190,12 +194,24 @@ describe("Server Actions des cartes", () => {
     const info = await created("Sahel", withPing());
     await updateMap(info.id, blankDoc());
     expect(db.calls).toEqual([
-      { fn: "create_map", args: { p_name: "Sahel", p_data: JSON.stringify(parseMapDoc(withPing())) } },
-      { fn: "update_map_data", args: { p_id: info.id, p_data: JSON.stringify(blankDoc()), p_expected_revision: 1 } },
+      { fn: "create_map", args: { p_name: "Sahel", p_data: JSON.stringify(portableDoc(parseMapDoc(withPing())!)) } },
+      { fn: "update_map_data", args: { p_id: info.id, p_data: JSON.stringify(portableDoc(blankDoc())), p_expected_revision: 1 } },
     ]);
     // Aucune écriture directe du contenu (la base les refuse) ; seul le nom s'écrit directement.
     await renameMap(info.id, "Autre");
     expect(db.writes).toEqual([{ name: "Autre" }]);
+  });
+
+  it("une carte sans ajout du format v2 part au format v1 (9 clés, accepté aussi par la base d'avant la bêta 2.1)", async () => {
+    const V1_KEYS = ["notes", "dates", "links", "pings", "points", "zones", "texts", "flux", "fluxFiches"];
+    const info = await created("Sahel", withPing());
+    const sent = JSON.parse(String(db.calls[0].args.p_data));
+    expect(Object.keys(sent).sort()).toEqual([...V1_KEYS].sort());
+    // Une carte qui utilise le format v2 garde ses ajouts.
+    const v2 = parseMapDoc(V2_EXPORT)!;
+    await updateMap(info.id, v2);
+    expect(JSON.parse(String(db.calls[1].args.p_data))).toEqual(JSON.parse(JSON.stringify(portableDoc(v2))));
+    expect(Object.keys(JSON.parse(String(db.calls[1].args.p_data)))).toEqual(expect.arrayContaining(["fiches"]));
   });
 
   it("l'identifiant d'une nouvelle carte est toujours choisi par la base, jamais par le navigateur", async () => {
@@ -213,12 +229,12 @@ describe("Server Actions des cartes", () => {
     db.rows[0].data = "contenu jamais lu";
     expect(await listMaps()).toEqual({
       ok: true,
-      value: [{ ...info, stats: "0 pays annotés · 0 liens · 1 balises · 0 zones · 0 textes" }],
+      value: [{ ...info, stats: "0 pays annotés · 0 liens · 1 balises · 0 zones · 0 textes", cover: null }],
     });
     db.rows[0].stats = null;
-    expect(await listMaps()).toEqual({ ok: true, value: [{ ...info, stats: null }] });
+    expect(await listMaps()).toEqual({ ok: true, value: [{ ...info, stats: null, cover: null }] });
     db.rows[0].stats = { notes: -1 };
-    expect(await listMaps()).toEqual({ ok: true, value: [{ ...info, stats: null }] });
+    expect(await listMaps()).toEqual({ ok: true, value: [{ ...info, stats: null, cover: null }] });
   });
 
   it("valident les identifiants et les noms", async () => {
@@ -260,7 +276,7 @@ describe("Server Actions des cartes", () => {
     expect(await createMap("Sahel", big)).toEqual({ ok: false, error: "too-large" });
     const info = await created();
     expect(await updateMap(info.id, big)).toEqual({ ok: false, error: "too-large" });
-    expect(db.rows[0].data).toEqual(withPing());
+    expect(db.rows[0].data).toEqual(stored(withPing()));
   });
 
   it("renvoient des erreurs génériques, sans message de la base", async () => {
@@ -297,5 +313,61 @@ describe("classifyDbError", () => {
     expect(classifyDbError({ code: "42501" })).toBe("unauthorized");
     expect(classifyDbError({ code: "PGRST301" })).toBe("unauthorized");
     expect(classifyDbError({})).toBe("unavailable");
+  });
+});
+
+describe("Server Action du logo d'une carte (setMapCover)", () => {
+  const icon = { kind: "icon" as const, icon: "anchor" as const, color: "corail" as const };
+  const setCover = (id: string, cover: unknown) => actions.setMapCover(me(), id, cover as never);
+
+  it("écrit le logo par la fonction de la base, sans changer la date ni la version, et le liste", async () => {
+    const info = await created();
+    expect(await setCover(info.id, { ...icon, color: "#ABCDEF" })).toEqual({ ok: true, value: true });
+    // Couleur normalisée, envoyée en texte (JSON compact).
+    expect(db.calls.at(-1)).toEqual({
+      fn: "set_map_cover",
+      args: { p_id: info.id, p_cover: JSON.stringify({ ...icon, color: "#abcdef" }) },
+    });
+    const list = await listMaps();
+    expect(list.ok && list.value[0]).toMatchObject({ updated: info.updated, revision: info.revision });
+    expect(list.ok && list.value[0].cover).toEqual({ ...icon, color: "#abcdef" });
+
+    expect(await setCover(info.id, null)).toEqual({ ok: true, value: true });
+    expect(db.calls.at(-1)?.args.p_cover).toBeNull();
+    const cleared = await listMaps();
+    expect(cleared.ok && cleared.value[0].cover).toBeNull();
+  });
+
+  it("ne touche pas la carte d'un autre compte et refuse sans utilisateur connecté", async () => {
+    const alice = await created();
+    signIn(BOB);
+    expect(await setCover(alice.id, icon)).toEqual({ ok: true, value: false });
+    expect(db.rows[0].cover).toBeUndefined();
+    mocks.user.value = null;
+    expect(await setCover(alice.id, icon)).toEqual({ ok: false, error: "unauthorized" });
+  });
+
+  it("refuse un logo ou un identifiant invalides, sans appeler la base", async () => {
+    const info = await created();
+    const calls = db.calls.length;
+    for (const cover of [
+      { ...icon, icon: "inconnue" },
+      { ...icon, color: "red" },
+      { kind: "preview", svg: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>' },
+      { kind: "autre" },
+      "logo",
+      undefined,
+    ]) {
+      expect(await setCover(info.id, cover)).toEqual({ ok: false, error: "invalid" });
+    }
+    expect(await setCover("pas-un-uuid", icon)).toEqual({ ok: false, error: "invalid" });
+    expect(db.calls.length).toBe(calls);
+  });
+
+  it("une carte dont le logo stocké est illisible est listée sans logo", async () => {
+    const info = await created();
+    db.rows[0].cover = { kind: "icon", icon: "anchor", color: "url(#x)" };
+    const list = await listMaps();
+    expect(list.ok && list.value[0]).toMatchObject({ id: info.id, cover: null });
   });
 });

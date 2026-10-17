@@ -6,7 +6,10 @@ import "server-only";
 // create_map et update_map_data (RPC), qui le reçoivent en texte et bornent sa taille avant de le
 // lire : la base refuse les INSERT et les UPDATE directs du contenu.
 import { formatStats } from "@/features/map-doc/ops";
+import { portableDoc } from "@/features/map-doc/schemaV2";
 import type { MapDoc } from "@/features/map-doc/types";
+import { parseMapCover } from "@/features/maps/cover";
+import type { MapCover } from "@/features/maps/cover";
 import { MAX_MAPS_PER_ACCOUNT } from "@/features/maps/limits";
 import type { MapActionError, RemoteMap, RemoteMapInfo, RemoteMapSummary } from "@/features/maps/types";
 import { z } from "@/lib/zod";
@@ -63,10 +66,13 @@ const toInfo = (row: InfoRow): RemoteMapInfo => ({
 });
 
 // Contenu envoyé en texte (JSON compact) : la base vérifie sa taille avant de le convertir en jsonb.
-const toText = (doc: MapDoc): string => JSON.stringify(doc);
+// Sans les clés v2 vides (portableDoc) : une carte qui n'utilise aucun ajout du format v2 est
+// enregistrée exactement au format v1, accepté aussi par la base d'avant la bêta 2.1. La relecture
+// (parseMapDoc) remet les clés v2.
+const toText = (doc: MapDoc): string => JSON.stringify(portableDoc(doc));
 
 const INFO_COLUMNS = "id, name, updated_at, revision";
-const LIST_COLUMNS = "id, name, updated_at, revision, stats";
+const LIST_COLUMNS = "id, name, updated_at, revision, stats, cover";
 const MAP_COLUMNS = "id, name, updated_at, revision, data";
 
 const count = z.number().int().nonnegative();
@@ -90,7 +96,7 @@ export async function listMaps(db: ServerSupabaseClient, userId: string): Promis
     .order("updated_at", { ascending: false })
     .limit(MAX_MAPS_PER_ACCOUNT);
   if (error) fail(error);
-  return data.map((row) => ({ ...toInfo(row), stats: statsText(row.stats) }));
+  return data.map((row) => ({ ...toInfo(row), stats: statsText(row.stats), cover: parseMapCover(row.cover) }));
 }
 
 export async function getMap(db: ServerSupabaseClient, userId: string, id: string): Promise<RemoteMap | null> {
@@ -127,6 +133,17 @@ export async function updateMap(
     .maybeSingle();
   if (error) fail(error);
   return data ? toInfo(data) : null;
+}
+
+/**
+ * Remplace (ou retire, avec null) le logo ou l'aperçu d'une carte (fonction set_map_cover, qui borne
+ * sa taille et sa forme) ; false si la carte n'existe pas. La date et la version du contenu ne
+ * changent pas. `userId` n'est pas transmis : la base ne modifie que les cartes de auth.uid().
+ */
+export async function setMapCover(db: ServerSupabaseClient, id: string, cover: MapCover | null): Promise<boolean> {
+  const { data, error } = await db.rpc("set_map_cover", { p_id: id, p_cover: cover && JSON.stringify(cover) });
+  if (error) fail(error);
+  return data === true;
 }
 
 export async function renameMap(

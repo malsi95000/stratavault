@@ -20,6 +20,10 @@ export const HINTS: Record<Tool, string> = {
 export const HINT_SELECT_GLOBE =
   "Cliquez sur un pays, un lien, une zone, une balise, un point ou un texte pour ouvrir sa fiche. Molette : zoom, glisser : faire tourner le globe.";
 
+/** Vue frise (EDI-07) : les outils de la carte n'y servent pas. */
+export const HINT_FRISE =
+  "Cliquez sur une fiche pour l’ouvrir. Molette ou boutons + et − : zoom, glisser ou flèches : se déplacer dans le temps.";
+
 /** Texte d'aide d'un outil selon la vue de la carte. */
 export function toolHint(tool: Tool, globe: boolean): string {
   return globe && tool === "select" ? HINT_SELECT_GLOBE : HINTS[tool];
@@ -41,3 +45,8 @@ export const hintLinkPending = (name: string) =>
 
 /** Choix d'un type dans le menu des balises. */
 export const hintPingType = (type: PingType) => `${PING_LABELS[type]} : cliquez sur la carte pour la poser.`;
+
+/** Plafond des fiches supplémentaires (par élément ou pour toute la carte) atteint. */
+export const HINT_FICHES_FULL = "Nombre maximal de fiches atteint : supprimez-en avant d’en ajouter.";
+/** Plafond des catégories de la carte atteint. */
+export const HINT_CATEGORIES_FULL = "Nombre maximal de catégories atteint : supprimez-en avant d’en ajouter.";

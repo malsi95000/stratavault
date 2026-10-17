@@ -57,7 +57,7 @@ export function NotesField({
     <label className={LABEL}>
       Notes
       <textarea
-        className={`${FIELD} min-h-[200px] resize-y`}
+        className={`${FIELD} min-h-[200px] resize-y in-data-[expanded=true]:min-h-[45vh]`}
         placeholder={placeholder}
         maxLength={MAX_NOTE_LENGTH}
         value={value}
@@ -67,14 +67,17 @@ export function NotesField({
   );
 }
 
-/** Bouton de suppression : demande confirmation (texte de la bêta) avant d'agir. */
+/**
+ * Bouton de suppression : demande confirmation (texte de la bêta) avant d'agir. Le texte peut être
+ * calculé au clic (nombre de fiches supplémentaires emportées, par exemple).
+ */
 export function DeleteButton({
   label,
   confirmText,
   onConfirm,
 }: {
   label: string;
-  confirmText: string;
+  confirmText: string | (() => string);
   onConfirm: () => void;
 }) {
   return (
@@ -82,7 +85,8 @@ export function DeleteButton({
       type="button"
       className={cn(BTN, "mt-[18px] border-danger-line text-danger hover:border-danger")}
       onClick={async () => {
-        if (await dialogs.confirm(confirmText, { confirmLabel: "Supprimer", destructive: true })) onConfirm();
+        const text = typeof confirmText === "function" ? confirmText() : confirmText;
+        if (await dialogs.confirm(text, { confirmLabel: "Supprimer", destructive: true })) onConfirm();
       }}
     >
       {label}

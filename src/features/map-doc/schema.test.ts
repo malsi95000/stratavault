@@ -21,6 +21,10 @@ describe("parseMapDoc", () => {
       pings: [BETA_EXPORT.pings[0], BETA_EXPORT.pings[1], { ...BETA_EXPORT.pings[2], type: "strategique" }],
       // La fiche "undefined" de la bêta est reportée sur chaque couleur tracée.
       fluxFiches: { jaune: BETA_EXPORT.fluxFiches.undefined, "bleu-fonce": BETA_EXPORT.fluxFiches.undefined },
+      // Clés du format v2, absentes de la bêta : complétées, vides.
+      fiches: {},
+      categories: [],
+      styles: {},
     });
   });
 

@@ -51,11 +51,18 @@ Les cartes des comptes sont stockées dans la table `public.maps`, créée par l
   ajoute la fonction `delete_my_account()`. À appliquer **avant** de déployer la version de
   l’application qui contient `/compte` : sans elle, « Supprimer mon compte » répond « Le compte n’a
   pas pu être supprimé » (rien n’est effacé), le reste de l’application fonctionne.
+- **Bêta 2.1** (format de carte v2, logo des cartes) : `supabase/migrations/20261014120000_maps_doc_v2.sql`
+  puis `supabase/migrations/20261014120100_maps_cover.sql`. À appliquer **avant** de déployer la
+  bêta 2.1 : elles acceptent tout ce qu’écrit la version précédente (cartes v1, mêmes fonctions). Sans
+  elles, la bêta 2.1 ne fonctionne pas en mode compte : la liste de la banque échoue (colonne `cover`
+  absente) et les cartes qui utilisent les nouveautés
+  (fiches supplémentaires, catégories, styles) sont refusées (« carte invalide »). Les autres cartes
+  passeraient : la bêta 2.1 les envoie sans les clés v2 vides (`portableDoc`), exactement au format v1.
 
 Vérifiez ensuite dans **Database → Tables** que `maps` existe avec **RLS enabled**, dans
 **Authentication → Policies** les quatre politiques `maps_select_own`, `maps_insert_own`,
 `maps_update_own` et `maps_delete_own`, et dans **Database → Functions** `create_map`,
-`update_map_data` et `delete_my_account`.
+`update_map_data`, `set_map_cover` et `delete_my_account`.
 - **Ou avec la CLI Supabase** : `npx supabase link --project-ref <projet>` puis `npx supabase db push`
   (le dossier `supabase/migrations/` est déjà au format attendu).
 
@@ -106,6 +113,23 @@ Ce que les migrations mettent en place :
   « permission denied for table sessions » ou « … table users », c’est ce droit qui manque. Une ligne qui référencerait l’utilisateur sans
   `on delete cascade` (fichiers de Supabase Storage par exemple, inutilisé ici) ferait échouer la
   suppression ;
+- **format de carte v2** (bêta 2.1, `20261014120000_maps_doc_v2.sql`) : `maps_doc_is_valid` est
+  remplacée (même signature) pour accepter, en plus des neuf clés d’une carte v1, les clés facultatives
+  `fiches` (fiches supplémentaires par élément : 1 à 50 par élément, 5 000 en tout), `categories` (50 au
+  plus, nom de 1 à 60 caractères) et `styles` (20 000 éléments au plus), et la palette étoffée des flux
+  (22 couleurs, fonction `maps_flux_colors()`). Clés inconnues refusées à tous les niveaux ; couleurs :
+  un jeton de la palette ou `#rrggbb` en minuscules ; identifiants et longueurs des textes vérifiés. Une
+  carte v1 reste acceptée telle quelle ;
+- **logo ou aperçu d’une carte** (bêta 2.1, `20261014120100_maps_cover.sql`) : colonne facultative
+  `cover` (jsonb, 18 000 octets au plus), écrite uniquement par la fonction `set_map_cover(p_id,
+  p_cover)` (RPC, `EXECUTE` réservé à `authenticated`, `SECURITY DEFINER`, seules les cartes de
+  `auth.uid()`) : 16 000 octets au plus **avant** conversion, aucun nombre, puis forme exacte (icône
+  `[a-z0-9-]`, couleur de la palette ; ou aperçu SVG de 12 000 octets au plus — une vignette —, sans
+  script, lien, référence externe ni déclaration XML). Changer le logo ne change ni la date ni la
+  version du contenu. Le logo n’entre pas dans le quota de 50 Mo du contenu : le stockage réel d’un
+  compte est borné par 50 Mo + 500 × 18 Ko, soit environ **59 Mo**. La liste de la banque renvoie le
+  logo de chaque carte (au plus 500 × 16 Ko, environ 8 Mo) : d’où des bornes petites. Le logo figure
+  dans « Télécharger mes données » (champ `cover`, lu carte par carte avec le contenu) ;
 - espace borné par compte : 500 cartes et 50 Mo de contenu au total (`data_bytes`, tenu par un
   déclencheur ; une modification qui n’agrandit pas une carte reste permise). Les écritures d’un même
   compte sont sérialisées par un verrou, pour que des écritures simultanées ne dépassent pas la limite.
@@ -114,7 +138,7 @@ Ce que les migrations mettent en place :
 
 Les politiques, les droits et les fonctions sont testés sur un vrai PostgreSQL (PGlite) par
 `src/features/maps/migration.test.ts`, `writeFunctions.test.ts` et `writeFunctions.cost.test.ts`
-(temps de traitement compris), et `src/features/account/deleteMyAccount.sql.test.ts` pour la
+(temps de traitement compris), `docV2.sql.test.ts` et `cover.sql.test.ts` (bêta 2.1), et `src/features/account/deleteMyAccount.sql.test.ts` pour la
 suppression du compte.
 
 ## 4. Cartes : ce qui se passe dans l’application

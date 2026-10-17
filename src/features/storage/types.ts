@@ -1,4 +1,5 @@
 import type { MapDoc } from "@/features/map-doc/types";
+import type { MapCover } from "@/features/maps/cover";
 
 /** Longueur maximale du nom d'une carte de la banque. */
 export const MAX_MAP_NAME_LENGTH = 120;
@@ -7,8 +8,9 @@ export const MAX_MAP_NAME_LENGTH = 120;
  * Une carte de la banque, telle qu'elle vient d'être écrite. `updated` est une date ISO 8601.
  * `version` identifie la version du contenu dans la banque : elle change à chaque modification du
  * contenu (pas au renommage). Absente des entrées enregistrées avant son introduction.
+ * `cover` : logo ou aperçu de la carte (bêta 2.1), déjà validé par le dépôt ; absent s'il n'y en a pas.
  */
-export type MapEntry = { id: string; name: string; updated: string; version?: string; data: MapDoc };
+export type MapEntry = { id: string; name: string; updated: string; version?: string; data: MapDoc; cover?: MapCover };
 
 /** Version de la banque dont dérive le document d'une carte (contrôle des écritures concurrentes). */
 export type SyncBase = { id: string; version: string };
@@ -59,6 +61,11 @@ export interface MapRepository {
   update(id: string, data: MapDoc, expectedVersion?: string): Promise<MapEntry | null>;
   /** Renomme une carte existante ; null si elle n'existe pas. */
   rename(id: string, name: string): Promise<StoredMapEntry | null>;
+  /**
+   * Remplace (ou retire, avec null) le logo ou l'aperçu d'une carte, sans changer sa date ni la
+   * version de son contenu ; false si la carte n'existe pas.
+   */
+  setCover(id: string, cover: MapCover | null): Promise<boolean>;
   remove(id: string): Promise<void>;
   /** Brouillon courant (document non validé : à passer par parseMapDoc). */
   getDraft(): Promise<unknown>;
@@ -85,4 +92,4 @@ export interface MapRepository {
 }
 
 /** Partie « banque » d'un dépôt : les cartes elles-mêmes (sans le brouillon ni la carte active). */
-export type MapBank = Pick<MapRepository, "list" | "get" | "create" | "update" | "rename" | "remove">;
+export type MapBank = Pick<MapRepository, "list" | "get" | "create" | "update" | "rename" | "setCover" | "remove">;

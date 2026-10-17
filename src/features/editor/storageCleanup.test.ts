@@ -17,6 +17,7 @@ vi.mock("@/features/maps/actions", () => {
     createMap: () => ok(null),
     updateMap: () => ok(null),
     renameMap: () => ok(null),
+    setMapCover: () => ok(true),
     deleteMap: () => ok(null),
   };
 });

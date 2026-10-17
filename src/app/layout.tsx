@@ -19,7 +19,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className="dark scroll-smooth bg-bg motion-reduce:scroll-auto"
       data-scroll-behavior="smooth"
     >
-      <body className="bg-bg font-sans text-[15px] leading-[1.45] text-ink">
+      {/* `isolate` : le fond thématique des pages annexes (PageBackdrop, -z-10) passe devant le fond du body. */}
+      <body className="isolate bg-bg font-sans text-[15px] leading-[1.45] text-ink">
         {children}
         <DialogHost />
         <Toaster position="top-center" />

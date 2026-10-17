@@ -1,11 +1,13 @@
 "use client";
 
-import { makeRef } from "@/features/map-doc/refs";
+import { erasedFicheCount } from "@/features/map-doc/ops";
+import { makeElementRef, makeRef } from "@/features/map-doc/refs";
 import { useEditorStore } from "@/features/editor/store";
 import { DateField, DeleteButton, NotesField, TitleField } from "./fields";
+import ExtraFichesList from "./ExtraFichesList";
 import FicheHeader from "./FicheHeader";
 import Relations from "./Relations";
-import { DELETE_CONFIRM } from "./texts";
+import { deleteConfirm } from "./texts";
 
 /** Fiche d'une zone tracée au lasso. */
 export default function ZoneFiche({ id }: { id: string }) {
@@ -30,10 +32,11 @@ export default function ZoneFiche({ id }: { id: string }) {
         value={zone.note}
         onChange={(note) => updateFiche("z", id, { note })}
       />
+      <ExtraFichesList owner={makeElementRef("z", id)} />
       <Relations doc={doc} of={makeRef("z", id)} />
       <DeleteButton
         label="Supprimer cette zone"
-        confirmText={DELETE_CONFIRM.z}
+        confirmText={() => deleteConfirm("z", erasedFicheCount(doc, "z", id))}
         onConfirm={() => {
           close();
           erase("z", id);

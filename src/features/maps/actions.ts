@@ -9,6 +9,8 @@
 // cookie de session appartient désormais à un autre compte (déconnexion puis connexion dans un
 // autre onglet), elle est refusée au lieu d'écrire les cartes d'un compte dans un autre.
 import type { MapDoc } from "@/features/map-doc/types";
+import { parseMapCover } from "./cover";
+import type { MapCover } from "./cover";
 import * as data from "@/lib/supabase/maps";
 import { createClient, type ServerSupabaseClient } from "@/lib/supabase/server";
 import { checkActiveUser } from "@/lib/supabase/user";
@@ -111,6 +113,19 @@ export async function updateMap(
 /** Renomme une carte ; null si elle n'existe pas. */
 export async function renameMap(userId: string, id: string, name: string): Promise<MapActionResult<RemoteMapInfo | null>> {
   return asUser(userId, (db, uid) => data.renameMap(db, uid, readId(id), readName(name)));
+}
+
+/** Logo ou aperçu revalidé (null : le retirer) ; sinon la requête est refusée. */
+function readCover(cover: unknown): MapCover | null {
+  if (cover === null) return null;
+  const parsed = parseMapCover(cover);
+  if (!parsed) throw rejected();
+  return parsed;
+}
+
+/** Remplace (ou retire, avec null) le logo ou l'aperçu d'une carte ; false si elle n'existe pas. */
+export async function setMapCover(userId: string, id: string, cover: MapCover | null): Promise<MapActionResult<boolean>> {
+  return asUser(userId, (db) => data.setMapCover(db, readId(id), readCover(cover)));
 }
 
 export async function deleteMap(userId: string, id: string): Promise<MapActionResult<null>> {

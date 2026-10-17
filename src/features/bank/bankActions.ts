@@ -3,7 +3,9 @@
 import type { AskAnswer, AskOptions, ConfirmOptions, PromptOptions } from "@/components/dialogs";
 import { MAP_NAME_PROMPT, cleanMapName, defaultMapName } from "@/features/editor/persistence";
 import type { Persistence } from "@/features/editor/persistence";
+import type { MapCover } from "@/features/maps/cover";
 import { MAX_MAP_NAME_LENGTH } from "@/features/storage";
+import { COVER_SAVE_FAILED } from "./cover/texts";
 
 export const UNSAVED_MAP_QUESTION =
   "Votre carte actuelle n’est pas enregistrée dans la banque. L’enregistrer avant de continuer ?";
@@ -48,6 +50,7 @@ export type BankDeps = {
     | "newMap"
     | "renameMap"
     | "deleteMap"
+    | "setMapCover"
   >;
   dialogs: {
     ask: (message: string, options: AskOptions) => Promise<AskAnswer>;
@@ -176,6 +179,20 @@ export function renameMap(deps: BankDeps, map: { id: string; name: string }): Pr
     if (name === null || !cleanMapName(name)) return;
     if (!(await deps.persistence.renameMap(map.id, name))) deps.notify(MAP_MISSING);
   });
+}
+
+/**
+ * « Logo » : enregistre le logo ou l'aperçu choisi (null : le retirer). true s'il est enregistré ;
+ * sinon le problème est signalé (carte disparue entre-temps, banque inaccessible).
+ */
+export async function setCover(deps: BankDeps, id: string, cover: MapCover | null): Promise<boolean> {
+  try {
+    if (await deps.persistence.setMapCover(id, cover)) return true;
+    deps.notify(MAP_MISSING);
+  } catch {
+    deps.notify(COVER_SAVE_FAILED);
+  }
+  return false;
 }
 
 /** « Supprimer » après confirmation ; si c'était la carte active, elle ne l'est plus. true : carte supprimée. */
