@@ -40,5 +40,13 @@ export const CREDITS: readonly Credit[] = [
   { name: "React Hook Form", pkg: "react-hook-form", license: "MIT", holder: "Beier (Bill) Luo", url: "https://react-hook-form.com" },
   { name: "@hookform/resolvers", pkg: "@hookform/resolvers", license: "MIT", holder: "Beier (Bill) Luo", url: "https://github.com/react-hook-form/resolvers" },
   { name: "idb", pkg: "idb", license: "ISC", holder: "Jake Archibald", url: "https://github.com/jakearchibald/idb" },
+  {
+    name: "sharp",
+    pkg: "sharp",
+    license: "Apache-2.0",
+    holder: "Lovell Fuller et contributeurs",
+    url: "https://sharp.pixelplumbing.com",
+    notice: "utilisé par le serveur pour réenregistrer les avatars ; inclut libvips, sous licence LGPL-3.0-or-later (https://www.libvips.org)",
+  },
   { name: "Supabase JS et @supabase/ssr", pkg: "@supabase/ssr", license: "MIT", holder: "Supabase, Inc.", url: "https://github.com/supabase/ssr" },
 ];

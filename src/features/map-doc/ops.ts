@@ -53,11 +53,13 @@ const lonLat = (p: LonLat): LonLat => [clamp(p[0], -180, 180), clamp(p[1], -90, 
 
 /**
  * Ajoute un lien entre deux extrémités distinctes et existantes ; renvoie le lien existant s'il y en a
- * déjà un, null si une extrémité n'existe pas ou si la limite d'éléments est atteinte.
+ * déjà un, null si une extrémité n'existe pas ou si la limite d'éléments est atteinte. `reusable` :
+ * liens existants qui peuvent servir (carte collective : seulement ceux du compte ; le lien d'un autre
+ * membre entre les mêmes extrémités n'empêche pas d'ajouter le sien).
  */
-export function addLink(doc: MapDoc, a: Ref, b: Ref, id: string = uid()): Added | null {
+export function addLink(doc: MapDoc, a: Ref, b: Ref, id: string = uid(), reusable: (link: Link) => boolean = () => true): Added | null {
   if (a === b || !refExists(doc, a) || !refExists(doc, b)) return null;
-  const existing = doc.links.find((l) => (l.a === a && l.b === b) || (l.a === b && l.b === a));
+  const existing = doc.links.find((l) => ((l.a === a && l.b === b) || (l.a === b && l.b === a)) && reusable(l));
   if (existing) return { doc, id: existing.id };
   if (isFull(doc, doc.links)) return null;
   const link: Link = { id, a, b, title: "", note: "" };

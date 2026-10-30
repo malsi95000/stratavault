@@ -2,7 +2,7 @@
 import { MAX_ACCOUNT_SIZE_LABEL, MAX_MAPS_PER_ACCOUNT, MAX_MAP_SIZE_LABEL } from "@/features/maps/limits";
 import { RemoteBankError } from "@/features/storage";
 import type { StorageMode } from "@/features/storage";
-import { DEMO_MESSAGES, MAP_CONFLICT, SAVE_DELAY_MS, SAVE_FAILED } from "./saveStatus";
+import { DEMO_MESSAGES, MAP_CONFLICT, MAP_SHARED_LOCKED, SAVE_DELAY_MS, SAVE_FAILED } from "./saveStatus";
 import type { PersistenceOptions } from "./saveStatus";
 
 /** Mode compte : chaque envoi part au serveur, on attend une pause plus longue dans la saisie. */
@@ -41,6 +41,9 @@ export function describeRemoteError(error: unknown): { status: string; retry: bo
       return { status: REMOTE_QUOTA, retry: false };
     case "conflict":
       return { status: MAP_CONFLICT, retry: false };
+    // Carte partagée qu'un membre modifie : la sauvegarde la détache (autoSave.ts) ; jamais réessayé.
+    case "locked":
+      return { status: MAP_SHARED_LOCKED, retry: false };
     default:
       return { status: REMOTE_OFFLINE, retry: true };
   }

@@ -33,6 +33,7 @@ import {
   LOGIN_PAGE,
   NEW_PASSWORD_PAGE,
   SIGNED_OUT_NOT_REVOKED_PAGE,
+  signInReturnPath,
 } from "./redirects";
 import { newPasswordSchema, resetRequestSchema, signInSchema, signUpSchema } from "./schemas";
 
@@ -80,8 +81,13 @@ async function clearSessionCookies() {
   for (const { name } of store.getAll()) if (isSessionCookie(name)) store.delete(name);
 }
 
+/**
+ * Connexion. Champ facultatif « next » : page où ramener une fois connecté, posée par le proxy
+ * (seulement celles de signInReturnPath ; sinon /espace).
+ */
 export async function signIn(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const parsed = signInSchema.safeParse(readFields(formData, ["email", "password"]));
+  const next = formData.get("next");
   if (!parsed.success) return invalidState(parsed.error);
   const supabase = await createClient();
   if (!supabase) return notConfigured();
@@ -100,7 +106,7 @@ export async function signIn(_previous: AuthFormState, formData: FormData): Prom
   }
 
   await clearDemo();
-  redirect(AFTER_SIGN_IN);
+  redirect(signInReturnPath(typeof next === "string" ? next : null));
 }
 
 export async function signUp(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {

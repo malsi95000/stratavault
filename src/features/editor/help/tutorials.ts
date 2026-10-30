@@ -165,13 +165,75 @@ const OTHER_TUTORIALS: Record<Exclude<HelpTopic, Tool>, Tutorial> = {
   },
 };
 
+/** Ce que devient un ajout dans la carte collective (session de la carte collective). */
+const PUBLISHED =
+  "Dans la carte collective, votre ajout est publié aussitôt, visible de tous les membres connectés et signé de votre nom affiché et de votre identifiant public.";
+
+/**
+ * Carte collective (règles d'édition de rules.ts) : on ne modifie et ne supprime que ses propres
+ * éléments, un lien ne vise qu'un pays ou l'un de ses éléments, et il n'y a ni fiche supplémentaire,
+ * ni couleur, ni catégorie ; les fiches des pays et des flux ne s'y modifient pas. Seules les parties
+ * qui changent sont redonnées.
+ */
+const COLLECTIVE_TUTORIALS: Partial<Record<HelpTopic, Partial<Tutorial>>> = {
+  select: {
+    summary: "Ouvre la fiche d’un élément de la carte collective pour la lire, ou la compléter si c’est le vôtre.",
+    steps: [
+      "Cliquez sur un pays, un lien, une balise, un point, une zone, un texte ou un trait de flux : sa fiche s’ouvre dans le panneau de droite, avec son auteur et sa date d’ajout.",
+      "Vos éléments : complétez leur fiche (titre, date, notes) ; vos modifications sont publiées automatiquement.",
+      "Élément d’un autre membre : sa fiche se lit seulement ; « Signaler » et « Bloquer l’auteur » sont en tête de fiche.",
+      "Molette : zoomer sous le pointeur. Glisser : déplacer la carte (en vue globe, la faire tourner).",
+    ],
+    tip: "Les fiches des pays et des flux ne se modifient pas ici, et la carte collective n’a ni fiche supplémentaire, ni couleur, ni catégorie. Échap ferme la fiche.",
+  },
+  link: {
+    steps: [
+      "Cliquez sur une première extrémité : un pays, ou l’un de vos propres éléments (balise, point, zone ou texte). Elle est mise en évidence.",
+      "Cliquez sur la seconde : le lien est tracé et sa fiche s’ouvre.",
+      "Donnez-lui un titre et des notes.",
+    ],
+    tip: `Un lien ne peut pas viser l’élément d’un autre membre. Échap, un clic dans le vide ou un second clic sur la même extrémité annule. ${PUBLISHED}`,
+  },
+  ping: { tip: `Un clic sur un élément existant (autre qu’un pays) ouvre sa fiche au lieu de poser une balise. ${PUBLISHED}` },
+  point: { tip: `Un point peut servir d’extrémité à l’un de vos liens. ${PUBLISHED}` },
+  texte: { tip: `Un clic sur un élément existant (autre qu’un pays) ouvre sa fiche au lieu de poser un texte. ${PUBLISHED}` },
+  lasso: { tip: `Un contour trop petit est refusé : dessinez une forme plus grande. Une zone peut servir d’extrémité à l’un de vos liens. ${PUBLISHED}` },
+  flux: {
+    steps: [
+      "Choisissez l’outil : son menu s’ouvre. Prenez l’une des 22 couleurs et réglez l’épaisseur.",
+      "Appuyez sur la carte et glissez pour tracer ; relâchez pour terminer le trait.",
+      "Avec l’outil Sélection, un clic sur un trait ouvre la fiche de sa couleur, qui ne se modifie pas dans la carte collective.",
+    ],
+    tip: `La gomme efface un de vos traits à la fois ; ceux des autres membres ne s’effacent pas. ${PUBLISHED}`,
+  },
+  gomme: {
+    summary: "Supprime l’un de vos éléments de la carte collective d’un simple clic.",
+    steps: [
+      "Cliquez sur l’un de vos liens, balises, points, zones, textes ou traits de flux : il est supprimé aussitôt de la carte collective.",
+      "Vos liens rattachés à l’élément supprimé disparaissent avec lui.",
+    ],
+    tip: "Les éléments des autres membres et les pays ne s’effacent pas. Une suppression ne peut pas être annulée. Un élément masqué par la modération se supprime depuis « Avis de modération ».",
+  },
+  frise: {
+    steps: [
+      "Les fiches datées des éléments de la carte collective (les vôtres et celles des autres membres) y apparaissent, à leur couleur.",
+      "Molette : zoomer autour du pointeur. Glisser ou Maj + molette : se déplacer dans le temps.",
+      "Cliquez sur une fiche pour l’ouvrir. Un repère numéroté regroupe des fiches proches : cliquez-le pour afficher leur liste.",
+    ],
+  },
+};
+
 const isTool = (topic: HelpTopic): topic is Tool => Object.hasOwn(TOOL_TUTORIALS, topic);
 
+/** Contexte de l'éditeur : `collective` dans la carte collective (règles d'édition propres). */
+export type HelpContext = { collective?: boolean };
+
 /** Tutoriel d'un sujet ; pour un outil, le raccourci vient de tools.ts. */
-export function tutorialFor(topic: HelpTopic): Tutorial {
-  if (!isTool(topic)) return OTHER_TUTORIALS[topic];
-  const shortcut = toolShortcut(topic);
-  return shortcut ? { ...TOOL_TUTORIALS[topic], shortcut } : TOOL_TUTORIALS[topic];
+export function tutorialFor(topic: HelpTopic, context: HelpContext = {}): Tutorial {
+  const base = isTool(topic) ? TOOL_TUTORIALS[topic] : OTHER_TUTORIALS[topic];
+  const tutorial = context.collective ? { ...base, ...COLLECTIVE_TUTORIALS[topic] } : base;
+  const shortcut = isTool(topic) ? toolShortcut(topic) : undefined;
+  return shortcut ? { ...tutorial, shortcut } : tutorial;
 }
 
 /** Tous les sujets qui ont un tutoriel. */

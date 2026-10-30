@@ -30,9 +30,10 @@ function refocusAfterRemoval(list: HTMLUListElement | null, index: number, fallb
 
 /**
  * « + Nouvelle carte » et liste des cartes de la banque (bêta, #bankNew et #bankList).
- * `remote` : banque du compte (Supabase), sinon banque de ce navigateur (démo).
+ * `remote` : banque du compte (Supabase), sinon banque de ce navigateur (démo). `sharedMapIds` : cartes
+ * du compte qui ont des membres (« Continuer » ouvre l'éditeur coopératif).
  */
-export default function Bank({ remote }: { remote: boolean }) {
+export default function Bank({ remote, sharedMapIds = [] }: { remote: boolean; sharedMapIds?: readonly string[] }) {
   const { state, newMap, continueMap, renameMap, deleteMap, changeCover, loadMap } = useBank();
   const listRef = useRef<HTMLUListElement>(null);
   const newMapRef = useRef<HTMLButtonElement>(null);
@@ -45,7 +46,7 @@ export default function Bank({ remote }: { remote: boolean }) {
   }, [removed]);
 
   const remove = async (item: BankItem, index: number) => {
-    if (!(await deleteMap(item))) return;
+    if (!(await deleteMap(item, remote && sharedMapIds.includes(item.id)))) return;
     // Le dialogue rend d'abord le focus au bouton « Supprimer » (disparu) : attendre sa fermeture.
     await whenDialogsClosed();
     setRemoved({ index });
@@ -79,6 +80,8 @@ export default function Bank({ remote }: { remote: boolean }) {
                 onDelete={() => remove(item, index)}
                 loadDoc={() => loadMap(item)}
                 onCover={(cover) => changeCover(item, cover)}
+                sharing={remote}
+                shared={remote && sharedMapIds.includes(item.id)}
               />
             </li>
           ))}

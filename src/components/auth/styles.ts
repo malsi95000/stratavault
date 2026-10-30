@@ -24,3 +24,7 @@ export const textLink =
   "mt-3 block w-full rounded px-3 py-1.5 text-center text-mute underline underline-offset-3 transition-colors duration-150 hover:text-ink";
 
 export const notice = "mb-5 border border-line bg-panel px-3.5 py-3 text-[14px]";
+
+/** Lien de navigation en forme de bouton (« Mon compte », « Mon profil »), style .btn de la bêta. */
+export const navLink =
+  "inline-block rounded border border-line bg-panel px-3 py-1.5 text-[13px] text-ink transition-colors duration-150 hover:border-mute";

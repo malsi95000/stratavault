@@ -7,7 +7,7 @@ import { blankDoc } from "@/features/map-doc/schema";
 import type { MapDoc } from "@/features/map-doc/types";
 import { RemoteBankError, createIndexedDbRepository, withBank } from "@/features/storage";
 import type { MapBank, MapRepository, RemoteFailure } from "@/features/storage";
-import { MAP_CONFLICT, MAP_GONE, createPersistence } from "./persistence";
+import { MAP_CONFLICT, MAP_GONE, MAP_SHARED_LOCKED, createPersistence } from "./persistence";
 import {
   ACCOUNT_DRAFT_SAVED,
   ACCOUNT_LOAD_FAILED,
@@ -430,6 +430,40 @@ describe("plusieurs appareils : une version plus récente n'est jamais écrasée
     expect(await bankNotes(remote, id)).toEqual({ FRA: "autre appareil" });
   });
 
+  it("carte partagée qu'un membre modifie (verrou) : détachée et gardée ici, sans nouvel essai ni faux conflit", async () => {
+    const { local, remote, store, persistence } = await setup();
+    store.getState().setCountryNote("FRA", "v1");
+    await persistence.saveToBank("Sahel");
+    const id = store.getState().activeMapId!;
+    remote.state.failure = "locked";
+    const updates = remote.state.updates;
+    store.getState().setCountryNote("FRA", "ici");
+    expect(await persistence.flush()).toBe(false);
+    expect(store.getState().saveStatus).toBe(MAP_SHARED_LOCKED);
+    expect(MAP_SHARED_LOCKED).not.toContain("nouvel essai");
+    expect(store.getState().activeMapId).toBeNull();
+    expect(store.getState().doc.notes).toEqual({ FRA: "ici" });
+    expect(await local.getActiveId()).toBeNull();
+    expect(await local.getPendingSync()).toBe(false);
+    expect(persistence.keptLocally()).toBe(true);
+    expect(persistence.needsBankPrompt()).toBe(true);
+    // Rien n'est renvoyé plus tard à la carte verrouillée.
+    remote.state.failure = null;
+    await wait(RETRY_MS * 5);
+    expect(remote.state.updates).toBe(updates + 1);
+    expect(await bankNotes(remote, id)).toEqual({ FRA: "v1" });
+  });
+
+  it("« Mettre à jour la banque » d'une carte partagée qu'un membre modifie : refusé, carte détachée", async () => {
+    const { remote, store, persistence } = await setup();
+    await persistence.saveToBank("Sahel");
+    remote.state.failure = "locked";
+    store.getState().setCountryNote("FRA", "ici");
+    expect(await persistence.saveToBank()).toBe("failed");
+    expect(store.getState().saveStatus).toBe(MAP_SHARED_LOCKED);
+    expect(store.getState().activeMapId).toBeNull();
+  });
+
   it("« Mettre à jour la banque » ne remplace pas une version plus récente", async () => {
     const { remote, store, persistence } = await setup();
     await persistence.saveToBank("Sahel");
@@ -640,6 +674,8 @@ describe("profils de sauvegarde", () => {
     expect(describeRemoteError(new RemoteBankError("unavailable"))).toEqual({ status: REMOTE_OFFLINE, retry: true });
     expect(describeRemoteError(new Error("autre"))).toEqual({ status: REMOTE_OFFLINE, retry: true });
     expect(describeRemoteError(new RemoteBankError("unauthorized")).retry).toBe(false);
+    // Carte partagée qu'un autre membre modifie : jamais réessayé (la carte est détachée).
+    expect(describeRemoteError(new RemoteBankError("locked"))).toEqual({ status: MAP_SHARED_LOCKED, retry: false });
     expect(describeRemoteError(new RemoteBankError("too-large"))).toEqual({ status: REMOTE_TOO_LARGE, retry: false });
     expect(describeRemoteError(new RemoteBankError("invalid")).retry).toBe(false);
     expect(describeRemoteError(new RemoteBankError("quota")).retry).toBe(false);

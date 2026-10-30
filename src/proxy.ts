@@ -28,7 +28,8 @@ async function guardedRefresh(request: NextRequest, config: SupabaseConfig): Pro
 
 /**
  * Avant chaque page : rafraîchit la session Supabase, applique les règles d'accès
- * (connexion exigée pour /espace, /carte et /compte quand les comptes sont actifs) et pose la CSP à nonce.
+ * (connexion exigée pour /espace, /carte, /compte, /profil et /contacts quand les comptes sont actifs, sauf
+ * en mode démo ; pour /carte-collective, même en mode démo) et pose la CSP à nonce.
  */
 export async function proxy(request: NextRequest) {
   const config = readSupabaseConfig();

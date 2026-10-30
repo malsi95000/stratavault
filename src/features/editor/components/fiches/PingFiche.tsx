@@ -4,7 +4,7 @@ import { erasedFicheCount } from "@/features/map-doc/ops";
 import { fmtLL } from "@/lib/geo";
 import { makeElementRef, makeRef } from "@/features/map-doc/refs";
 import { PING_LABELS, PING_TYPES, isPingType } from "@/features/map-doc/types";
-import { useEditorStore } from "@/features/editor/store";
+import { ficheReadOnly, useEditorStore } from "@/features/editor/store";
 import { DateField, DeleteButton, Facts, NotesField, TitleField } from "./fields";
 import ExtraFichesList from "./ExtraFichesList";
 import FicheHeader from "./FicheHeader";
@@ -19,6 +19,7 @@ export default function PingFiche({ id }: { id: string }) {
   const changePingType = useEditorStore((s) => s.changePingType);
   const close = useEditorStore((s) => s.close);
   const erase = useEditorStore((s) => s.erase);
+  const readOnly = useEditorStore(ficheReadOnly);
   const ping = doc.pings.find((p) => p.id === id);
   if (!ping) return null;
   const label = PING_LABELS[ping.type];
@@ -36,6 +37,7 @@ export default function PingFiche({ id }: { id: string }) {
         Catégorie
         <select
           className={FIELD}
+          disabled={readOnly}
           value={ping.type}
           onChange={(e) => {
             if (isPingType(e.target.value)) changePingType(id, e.target.value);

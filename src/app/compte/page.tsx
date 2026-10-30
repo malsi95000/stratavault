@@ -7,11 +7,13 @@ import PageBackdrop from "@/components/backdrop/PageBackdrop";
 import AccountBar from "@/components/auth/AccountBar";
 import AuthCard from "@/components/auth/AuthCard";
 import SessionProblem from "@/components/auth/SessionProblem";
-import { textLink } from "@/components/auth/styles";
+import { navLink, textLink } from "@/components/auth/styles";
 import { LOGIN_PAGE } from "@/features/auth/redirects";
 import AccountPanel from "@/features/account/components/AccountPanel";
 import { exportError } from "@/features/account/notices";
 import { NOT_CONFIGURED } from "@/features/auth/messages";
+import { CONTACTS_PAGE } from "@/features/contacts/paths";
+import { MY_PROFILE_PAGE } from "@/features/profiles/paths";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { DEMO_COOKIE } from "@/lib/supabase/cookies";
 import { checkActiveAccount } from "@/lib/supabase/user";
@@ -75,7 +77,15 @@ export default async function ComptePage({ searchParams }: PageProps<"/compte">)
       <main className="mx-auto max-w-[760px] px-6 pt-8 pb-[90px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <BackLink href="/espace" label="Retour à mon espace" />
-          <AccountBar />
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href={MY_PROFILE_PAGE} className={navLink}>
+              Mon profil
+            </Link>
+            <Link href={CONTACTS_PAGE} className={navLink}>
+              Contacts
+            </Link>
+            <AccountBar />
+          </div>
         </div>
         <h1 className="brut mt-[30px] mb-8 text-[clamp(28px,5vw,44px)]">Mon compte</h1>
         <AccountPanel account={check.account} exportError={exportError(await searchParams)} />

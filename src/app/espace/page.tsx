@@ -6,11 +6,20 @@ import SiteFooter from "@/components/SiteFooter";
 import PageBackdrop from "@/components/backdrop/PageBackdrop";
 import AccountBar from "@/components/auth/AccountBar";
 import SessionProblem from "@/components/auth/SessionProblem";
+import TermsChangeNotice from "@/components/legal/TermsChangeNotice";
+import { navLink } from "@/components/auth/styles";
 import ClearDemoData from "@/features/account/components/ClearDemoData";
 import { ACCOUNT_PAGE, spaceNotice } from "@/features/account/notices";
+import CollectiveEntry from "@/features/collective/components/CollectiveEntry";
+import { readUnreadCollectiveNotices } from "@/features/collective/unreadNotices";
 import { getPageSession } from "@/features/auth/getPageSession";
 import Bank from "@/features/bank/components/Bank";
+import { CONTACTS_PAGE } from "@/features/contacts/paths";
 import StorageScope from "@/features/editor/components/StorageScope";
+import { MY_PROFILE_PAGE } from "@/features/profiles/paths";
+import SharedWithMe from "@/features/sharing/components/SharedWithMe";
+import { termsChangeShownToAccount } from "@/features/legal/termsChangeForAccount";
+import { readOwnSharedMapIds } from "@/features/sharing/ownSharedMaps";
 
 export const metadata: Metadata = { title: "Mon espace stratégique" };
 
@@ -23,6 +32,12 @@ export default async function EspacePage({ searchParams }: PageProps<"/espace">)
   const account = session.kind === "account" ? session.account : null;
   // Confirmation après l'effacement des données de démo (?donnees=effacees).
   const notice = account ? undefined : spaceNotice(await searchParams);
+  // Cartes du compte qui ont des membres : « Continuer » ouvre l'éditeur coopératif.
+  const sharedMapIds = account ? await readOwnSharedMapIds() : [];
+  // Avis de modération non lus de la carte collective (auteur d'un élément masqué ou supprimé).
+  const unreadNotices = account ? await readUnreadCollectiveNotices() : 0;
+  // Avis de changement des textes : comptes créés avant l'entrée en vigueur seulement.
+  const showTermsChange = account ? await termsChangeShownToAccount() : false;
 
   return (
     <>
@@ -33,17 +48,23 @@ export default async function EspacePage({ searchParams }: PageProps<"/espace">)
           <BackLink href="/" label="Retour à l’accueil" />
           <div className="flex flex-wrap items-center gap-3">
             {account && (
-              <Link
-                href={ACCOUNT_PAGE}
-                className="rounded border border-line bg-panel px-3 py-1.5 text-[13px] text-ink transition-colors duration-150 hover:border-mute"
-              >
-                Mon compte
-              </Link>
+              <>
+                <Link href={MY_PROFILE_PAGE} className={navLink}>
+                  Mon profil
+                </Link>
+                <Link href={CONTACTS_PAGE} className={navLink}>
+                  Contacts
+                </Link>
+                <Link href={ACCOUNT_PAGE} className={navLink}>
+                  Mon compte
+                </Link>
+              </>
             )}
             <AccountBar />
           </div>
         </div>
         <h1 className="brut mt-[30px] mb-8 text-[clamp(28px,5vw,44px)]">Mon espace stratégique</h1>
+        {showTermsChange && <TermsChangeNotice />}
         <p className="mb-[22px] max-w-[60ch] text-mute">
           Retrouvez ici toutes vos cartes stratégiques enregistrées, ou repartez d’une carte vierge. Depuis la page
           d’édition, le bouton « Enregistrer dans la banque » ajoute ou met à jour la carte en cours.
@@ -56,8 +77,10 @@ export default async function EspacePage({ searchParams }: PageProps<"/espace">)
             </p>
           }
         >
-          <Bank remote={account !== null} />
+          <Bank remote={account !== null} sharedMapIds={sharedMapIds} />
         </StorageScope>
+        {account && <SharedWithMe userId={account.userId} />}
+        {account && <CollectiveEntry unreadNotices={unreadNotices} />}
         {!account && (
           <section aria-labelledby="donnees-navigateur" className="mt-12 border-t border-line pt-6">
             <h2 id="donnees-navigateur" className="brut mb-2 text-[19px]">

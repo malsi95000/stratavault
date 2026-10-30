@@ -31,6 +31,8 @@ const RAISED_ERRORS = new Map<string, MapActionError>([
   ["maps_too_large", "too-large"],
   ["maps_invalid", "invalid"],
   ["maps_conflict", "conflict"],
+  // Carte partagée : un autre membre tient le verrou d'édition (20261019120000_map_sharing.sql).
+  ["maps_locked", "locked"],
 ]);
 
 /** Classe une erreur de PostgREST (codes PostgreSQL) sans jamais la renvoyer telle quelle. */
@@ -79,7 +81,7 @@ const count = z.number().int().nonnegative();
 /** Colonne `stats`, tenue par un déclencheur de la base (null : contenu qui n'a pas la forme d'une carte). */
 const statsSchema = z.object({ notes: count, links: count, pings: count, zones: count, texts: count });
 
-const statsText = (stats: unknown): string | null => {
+export const statsText = (stats: unknown): string | null => {
   const parsed = statsSchema.safeParse(stats);
   return parsed.success ? formatStats(parsed.data) : null;
 };

@@ -3,7 +3,7 @@
 // docs/legal.md) : rien n'y est inventé. À relire avant toute mise en ligne.
 
 /** Date de dernière mise à jour des textes légaux (affichée sur chaque page légale). */
-export const LEGAL_UPDATED_ON = "17 octobre 2026";
+export const LEGAL_UPDATED_ON = "30 octobre 2026";
 
 const SCHOOL = { name: "Sciences Po", campus: "Menton" } as const;
 
@@ -36,15 +36,63 @@ export const LCEN = {
   publisherArticle: "article 1-1",
   /** Éléments d'identification d'une personne physique (art. 1-1, I, 1°), à communiquer à l'hébergeur pour bénéficier du II. */
   personalIdentification: "nom, prénoms, domicile et numéro de téléphone",
+  /**
+   * Fournisseurs de services intermédiaires, dont les hébergeurs (définitions renvoyant au DSA,
+   * obligations au IV, conservation des données d'identification au V, signalement abusif au VII).
+   * Version en vigueur consultée sur Légifrance le 28 octobre 2026 (docs/legal.md, points 23 et 24) ;
+   * le relevé ne dit pas si le IV impose encore de rendre publics les moyens consacrés à la lutte
+   * contre les activités illicites (UNVERIFIED) : les mentions légales les publient par prudence.
+   */
+  hostArticle: "article 6",
+  /** Peine du signalement abusif (art. 6, VII), relevée sur Légifrance le 28 octobre 2026. */
+  abusiveNoticePenalty: "un an d’emprisonnement et 15 000 euros d’amende",
 } as const;
 
 /**
- * Adresse de contact publique.
- * VALEUR PROVISOIRE : à remplacer par une vraie adresse avant la mise en ligne (docs/legal.md).
+ * Règlement européen sur les services numériques. Le site en applique par prudence les obligations
+ * de tout hébergeur (point de contact, signalement, exposé des motifs, information des autorités) ;
+ * son application exacte à un projet non commercial édité par un particulier reste à confirmer
+ * (UNVERIFIED et docs/legal.md, point 24).
+ */
+export const DSA = {
+  name: "règlement (UE) 2022/2065 du Parlement européen et du Conseil du 19 octobre 2022 relatif à un marché unique des services numériques (règlement sur les services numériques, ou « DSA »)",
+  short: "règlement sur les services numériques (DSA)",
+  /** Coordinateur pour les services numériques en France (désigné par la loi SREN). */
+  coordinator: "Autorité de régulation de la communication audiovisuelle et numérique (Arcom)",
+  coordinatorWebsite: "https://www.arcom.fr",
+} as const;
+
+/**
+ * Vrai seulement une fois examinés, de préférence avec un juriste, les points que docs/legal.md
+ * (points 22 à 25) demande de régler avant d'ouvrir la carte collective au public : statut juridique
+ * du projet et titularité des droits, conservation des données d'identification des auteurs (LCEN
+ * art. 6, V), qualification de plateforme en ligne et méthode de comptage des destinataires actifs
+ * (DSA art. 24, paragraphe 3), qualification éventuelle de réseau social en ligne et règles propres
+ * aux moins de 15 ans (point 25). Tant qu'il est faux, la mise en production est bloquée
+ * (src/lib/legalReadiness.ts) ; LEGAL_LAUNCH_OVERRIDE peut l'accepter, et chaque build le rappelle.
+ */
+export const COLLECTIVE_LEGAL_REVIEW_DONE = false;
+
+/**
+ * Langues dans lesquelles on peut écrire au point de contact unique (DSA, articles 11 et 12).
+ * L'article 11, paragraphe 3 exige, pour le point de contact des autorités, une langue « largement
+ * comprise par le plus grand nombre possible de citoyens de l'Union » en plus d'une langue officielle
+ * de l'État membre d'établissement : l'anglais et le français. La même adresse sert aux utilisateurs.
+ */
+export const CONTACT_LANGUAGES = "français ou anglais";
+
+/**
+ * Adresse de contact publique : point de contact unique (DSA, art. 11 et 12), voie de signalement des
+ * contenus illicites (art. 16) et de contestation des décisions de modération.
+ * VALEUR PROVISOIRE choisie par l'éditeur : à remplacer par une vraie adresse, qu'il lit, avant
+ * l'ouverture des fonctions communautaires au public (docs/legal.md, point 1).
  */
 export const CONTACT_EMAIL = "exemple@gmail.com";
 
-/** Vrai tant que CONTACT_EMAIL est la valeur provisoire (rappelé dans docs/legal.md). */
+/**
+ * Vrai tant que CONTACT_EMAIL est la valeur provisoire (rappelé dans docs/legal.md). Bloque la mise en
+ * production (src/lib/legalReadiness.ts), sauf acceptation explicite par LEGAL_LAUNCH_OVERRIDE.
+ */
 export const CONTACT_IS_PLACEHOLDER = true;
 
 export const CONTACT_MAILTO = `mailto:${CONTACT_EMAIL}`;
@@ -147,7 +195,15 @@ export const DATA_PROVIDER = {
   privacyPolicy: "https://supabase.com/privacy",
   dpa: "https://supabase.com/legal/dpa",
   subprocessors: "https://supabase.com/legal/customer-resources/subprocessor-list",
+  /** Région du projet (base de données et authentification), vérifiée dans le tableau de bord. */
   region: "Amazon Web Services, région eu-west-3 (Paris, France)",
+  /**
+   * Avatars (Supabase Storage, compartiment privé « avatars » du même projet). La documentation de
+   * Supabase consultée le 29 octobre 2026 rattache les accès S3 de Storage à la région du projet, sans
+   * dire expressément que les fichiers y sont conservés : seul ce point reste à vérifier (UNVERIFIED).
+   */
+  avatarStorage:
+    "stockage de fichiers (Storage) du même projet, dans un compartiment privé ; la documentation de Supabase rattache ce stockage à la région du projet, mais ne confirme pas expressément que les fichiers y sont conservés (point en cours de vérification)",
   transfers:
     "clauses contractuelles types de la Commission européenne (module 2, responsable de traitement vers sous-traitant), prévues par l’accord de traitement des données de Supabase",
   /**
@@ -212,7 +268,7 @@ export type LegalPageHref = (typeof LEGAL_PAGES)[number]["href"];
 /** Points non vérifiés ou à compléter avant la mise en ligne (repris dans docs/legal.md). */
 export const UNVERIFIED = [
   "Identification de l’éditeur auprès de Vercel (LCEN art. 1-1, II) : les mentions légales ne publient ni le domicile ni le téléphone de l’éditeur, ce qui suppose qu’il ait communiqué à Vercel son nom, ses prénoms, son domicile et son numéro de téléphone ; rien ne le vérifie automatiquement (PUBLISHER_IDENTIFIED_TO_HOST) ; la mise en production est bloquée tant que ce n’est pas fait.",
-  "Adresse de contact : exemple@gmail.com est une valeur provisoire ; son fournisseur de messagerie (CONTACT_PROVIDER) est à renseigner.",
+  "Adresse de contact : exemple@gmail.com est une valeur provisoire choisie par l’éditeur ; son fournisseur de messagerie (CONTACT_PROVIDER) est à renseigner. Elle est le point de contact unique et la voie de signalement et de contestation des profils, des cartes partagées et de la carte collective : tant qu’elle n’est pas remplacée par une adresse que l’éditeur lit, ces voies ne fonctionnent pas. La mise en production est bloquée, sauf acceptation explicite par LEGAL_LAUNCH_OVERRIDE (rappelée à chaque build).",
   "Téléphone de Vercel Inc. : absent des pages officielles consultées (conditions, politique de confidentialité, DPA, page de contact).",
   "Offre Vercel et Supabase utilisée (durées des journaux pour les offres gratuites : 1 heure chez Vercel ; chez Supabase, 1 jour pour les journaux de l’API et de la base et 1 heure pour les journaux d’authentification).",
   "Contrat de sous-traitance avec Vercel en offre Hobby : les sections 1 et 4.1 du DPA de Vercel le limitent aux offres Pro et Enterprise, mais la section 10.1 des conditions de Vercel, communes à toutes les offres, dit que Vercel traite les données conformément à ce DPA, « incorporated by reference ». Les deux textes se contredisent : sans l’offre Pro ou une confirmation écrite de Vercel que le DPA s’applique au compte Hobby (VERCEL_HOBBY_DPA_CONFIRMED_IN_WRITING), l’existence d’un contrat conforme à l’article 28 du RGPD n’est pas établie, et la mise en production est bloquée.",
@@ -221,4 +277,11 @@ export const UNVERIFIED = [
   "Modèles d’e-mail de Supabase Auth : vérifier que les modèles « token_hash » sont en place (docs/supabase.md) ; avec les modèles par défaut, le lien reçu par e-mail passe d’abord par Supabase, qui reçoit alors l’adresse IP et le navigateur de la personne (cas signalé sur /confidentialite).",
   "Régions du proxy (src/proxy.ts) : les fonctions du projet s’exécutent à Paris (cdg1, réglage du projet Vercel), mais le proxy s’exécute dans toutes les régions de Vercel quel que soit ce réglage (HOST.proxyLocation, d’après la documentation de Vercel) ; la page consultée indique moins de régions en offre Hobby sans en donner la liste.",
   "Prestataire d’envoi des e-mails de Supabase et sa localisation (liste des sous-traitants de Supabase, au format PDF).",
+  "Statut juridique du projet : Stratavault a deux auteurs, Islam et Léo Velard ; l’éditeur et directeur de la publication déclaré est Léo Velard, personne physique ; la titularité des droits d’auteur, la répartition des responsabilités entre les deux auteurs et la forme juridique du projet (personne physique, association…) restent à arrêter.",
+  "Application du règlement sur les services numériques (DSA) et de l’article 6 de la LCEN à un projet gratuit et non commercial édité par un particulier : non tranchée (un service de la société de l’information est un service « normalement fourni contre rémunération ») ; le site en applique par prudence les obligations de tout hébergeur (point de contact, signalement, exposé des motifs, information des autorités), à faire confirmer par un juriste.",
+  "Conservation des données d’identification des auteurs de contenus (article 6, V de la LCEN et décret n° 2021-1362 du 20 octobre 2021) : l’application garde le compte de l’auteur de chaque contribution et sa date, mais aucune adresse IP ; à examiner avec un juriste avant d’ouvrir la carte collective au public.",
+  "Examen juridique de la carte collective (statut du projet, données d’identification des auteurs, plateforme en ligne et comptage des destinataires actifs, DSA art. 24.3, réseau social en ligne et moins de 15 ans) : la mise en production est bloquée tant que COLLECTIVE_LEGAL_REVIEW_DONE vaut false, sauf acceptation explicite par LEGAL_LAUNCH_OVERRIDE, rappelée à chaque build.",
+  "Lieu de stockage des avatars (Supabase Storage, compartiment privé « avatars ») : la documentation de Supabase consultée le 29 octobre 2026 donne aux accès S3 de Storage la région du projet (« project_region ») mais ne dit pas expressément que les fichiers sont gardés dans la région de la base (eu-west-3) ; à confirmer dans le tableau de bord (Storage → S3, région affichée) ou auprès de Supabase.",
+  "Réseau social en ligne et moins de 15 ans : avec les profils, les contacts, le partage et la carte collective, le service pourrait être qualifié de « service de réseaux sociaux en ligne » au sens de la loi n° 2023-566 du 7 juillet 2023 (majorité numérique), qui renvoie à la définition du règlement (UE) 2022/1925, article 2, point 7 ; l’entrée en vigueur de son obligation de refuser l’inscription des moins de 15 ans sans autorisation parentale (et de vérifier l’âge), et l’existence d’une loi postérieure sur les réseaux sociaux et les mineurs, n’ont pas été vérifiées sur Légifrance (docs/legal.md, point 25).",
+  "Article 6, IV de la LCEN (version en vigueur relue le 28 octobre 2026) : le relevé confirme l’information des autorités sur les activités illicites signalées, mais pas que l’obligation de rendre publics les moyens consacrés à la lutte contre ces activités (ancien article 6, I, 7) y figure encore ; les mentions légales décrivent ces moyens par prudence, sans affirmer l’obligation.",
 ] as const;

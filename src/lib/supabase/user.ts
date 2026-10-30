@@ -84,27 +84,29 @@ export async function verifyAccount(supabase: ServerSupabaseClient): Promise<Acc
   }
 }
 
+/** Résultat de verifyAccount réduit à l'identifiant et à l'adresse e-mail. */
+const toUserCheck = (check: AccountCheck): UserCheck =>
+  check.status === "signed-in" ? { status: "signed-in", user: { id: check.account.id, email: check.account.email } } : check;
+
 /** Comme verifyAccount, réduit à l'identifiant et à l'adresse e-mail. */
 export async function verifyUser(supabase: ServerSupabaseClient): Promise<UserCheck> {
-  const check = await verifyAccount(supabase);
-  if (check.status !== "signed-in") return check;
-  return { status: "signed-in", user: { id: check.account.id, email: check.account.email } };
+  return toUserCheck(await verifyAccount(supabase));
 }
 
-/** Fiche du compte vérifiée auprès de l'API Auth, une fois par requête (page « Mon compte »). */
+/**
+ * Fiche du compte vérifiée auprès de l'API Auth, une fois par requête (page « Mon compte », date de
+ * création du compte pour l'avis de changement des textes dans /espace).
+ */
 export const checkActiveAccount = cache(async (): Promise<AccountCheck> => {
   const supabase = await createClient();
   return supabase ? verifyAccount(supabase) : { status: "signed-out" };
 });
 
 /**
- * Session vérifiée auprès de l'API Auth (verifyUser), une fois par requête : rendu de /carte et
- * /espace et toutes les Server Actions des cartes.
+ * Session vérifiée auprès de l'API Auth (checkActiveAccount, même appel par requête), une fois par
+ * requête : rendu de /carte et /espace et toutes les Server Actions des cartes.
  */
-export const checkActiveUser = cache(async (): Promise<UserCheck> => {
-  const supabase = await createClient();
-  return supabase ? verifyUser(supabase) : { status: "signed-out" };
-});
+export const checkActiveUser = cache(async (): Promise<UserCheck> => toUserCheck(await checkActiveAccount()));
 
 /** Utilisateur du jeton (signature vérifiée, affichage seulement) ; `null` sans session valide ou si la vérification est impossible. */
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {

@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { HEX_COLOR_PATTERN, parseMapColor } from "@/features/map-doc/types";
 import type { MapColor } from "@/features/map-doc/types";
+import { ficheReadOnly, useEditorStore } from "@/features/editor/store";
 import { cn } from "@/lib/utils";
 import ColorSwatches, { colorName } from "../ColorSwatches";
 import { BTN, LABEL } from "./styles";
@@ -28,9 +29,10 @@ export default function ColorField({
   allowNone?: boolean;
 }) {
   const customId = useId();
+  const readOnly = useEditorStore(ficheReadOnly);
   const custom = value && HEX_COLOR_PATTERN.test(value) ? value : undefined;
   return (
-    <fieldset className="m-0 mt-3.5 border-0 p-0">
+    <fieldset className="m-0 mt-3.5 border-0 p-0" disabled={readOnly}>
       <legend className={cn(LABEL, "mt-0 mb-1.5 p-0")}>
         Couleur : <span className="text-ink">{value ? colorName(value) : emptyLabel}</span>
       </legend>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { Selection } from "@/features/map-doc/types";
 import {
   FICHE_BUTTON_ATTR,
@@ -61,12 +62,16 @@ function restoreFocus(aside: HTMLElement, target: PanelFocusTarget) {
   (button ?? aside.querySelector<HTMLElement>(`[${FOCUS_FALLBACK_ATTR}]`))?.focus({ preventScroll: true });
 }
 
+/** Bloc affiché en tête de la fiche ouverte (carte collective : auteur de l'élément, signalement). */
+export type FicheAside = (selection: Selection) => ReactNode;
+
 /**
  * Panneau de droite : glisse depuis la droite et affiche la fiche de l'élément ouvert. En plein écran,
  * il couvre toute la carte (texte centré, lisible) ; Échap ou le bouton de l'en-tête le ramène à droite,
  * même pendant la saisie dans un champ. Le reste de l'éditeur est alors inerte (Editor.tsx).
+ * `aside` : bloc propre à la carte ouverte, affiché au-dessus de la fiche.
  */
-export default function Panel() {
+export default function Panel({ aside }: { aside?: FicheAside }) {
   const selection = useEditorStore((s) => s.selection);
   const panelExpanded = useEditorStore((s) => s.panelExpanded);
   const setPanelExpanded = useEditorStore((s) => s.setPanelExpanded);
@@ -108,6 +113,7 @@ export default function Panel() {
     >
       <div className={expanded ? "mx-auto max-w-3xl" : undefined}>
         {/* Une clé par fiche : les champs repartent de la fiche ouverte. */}
+        {shown && aside && <Fragment key={`aside-${ficheKey(shown)}`}>{aside(shown)}</Fragment>}
         {shown && <Fiche key={ficheKey(shown)} selection={shown} />}
       </div>
     </aside>

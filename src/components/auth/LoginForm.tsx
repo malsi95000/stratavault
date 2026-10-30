@@ -14,16 +14,23 @@ import NotConfiguredNotice from "./NotConfiguredNotice";
 import { form as formClass, primaryButton, textLink } from "./styles";
 import { useAuthAction } from "./useAuthAction";
 
-export default function LoginForm({ accountsEnabled }: { accountsEnabled: boolean }) {
+type Props = {
+  accountsEnabled: boolean;
+  /** Page où ramener une fois connecté (revérifiée par l'action) ; absente : l'espace. */
+  next?: string;
+};
+
+export default function LoginForm({ accountsEnabled, next }: Props) {
   const demoFormId = useId();
   const form = useForm({ resolver: zodResolver(signInSchema), defaultValues: { email: "", password: "" } });
-  const { state, formAction, onSubmit, pending } = useAuthAction(form, signIn);
+  const { state, formAction, onSubmit, pending } = useAuthAction(form, signIn, next ? { next } : {});
   const { errors } = form.formState;
 
   return (
     <>
       {!accountsEnabled && <NotConfiguredNotice />}
       <form action={formAction} onSubmit={onSubmit} noValidate aria-busy={pending} className={formClass}>
+        {next && <input type="hidden" name="next" value={next} />}
         <fieldset disabled={!accountsEnabled} className="contents">
           <AuthField
             id="email"

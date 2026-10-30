@@ -103,4 +103,12 @@ describe("checkAttempt", () => {
     expect(checkAttempt("signUp", "1.1.1.1")).toBe("limited");
     expect(checkAttempt("signUp", "2.2.2.2")).toBe("allowed");
   });
+
+  it("carte collective : un groupe derrière la même adresse peut la garder ouverte", () => {
+    // 50 membres, chacun une lecture d'état toutes les 30 s et autant de relectures de la carte (5 min).
+    for (let i = 0; i < 50 * 20; i++) expect(checkAttempt("collectiveRead", "1.1.1.1")).toBe("allowed");
+    for (let i = 0; i < 500; i++) checkAttempt("collectiveRead", "1.1.1.1");
+    expect(checkAttempt("collectiveRead", "1.1.1.1")).toBe("limited");
+    expect(checkAttempt("collectiveRead", "2.2.2.2")).toBe("allowed");
+  });
 });

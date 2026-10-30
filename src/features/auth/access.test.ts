@@ -30,6 +30,32 @@ describe("decideAccess (règles du proxy)", () => {
     expect(decideAccess(ctx({ pathname: "/comptes" }))).toEqual({ type: "next" });
   });
 
+  it("protège les profils ; les avatars répondent eux-mêmes 404 sans session", () => {
+    for (const pathname of ["/profil", "/profil/alice"]) {
+      expect(decideAccess(ctx({ pathname }))).toEqual({ type: "redirect", to: "/connexion" });
+      expect(decideAccess(ctx({ pathname, signedIn: true }))).toEqual({ type: "next" });
+    }
+    expect(decideAccess(ctx({ pathname: "/avatars/x" }))).toEqual({ type: "next" });
+  });
+
+  it("protège la page des contacts", () => {
+    expect(decideAccess(ctx({ pathname: "/contacts" }))).toEqual({ type: "redirect", to: "/connexion" });
+    expect(decideAccess(ctx({ pathname: "/contacts", signedIn: true }))).toEqual({ type: "next" });
+    expect(decideAccess(ctx({ pathname: "/contactsx" }))).toEqual({ type: "next" });
+  });
+
+  it("carte collective : connexion d'abord, même en mode démo, qui ramène ensuite à la carte", () => {
+    const login = "/connexion?next=%2Fcarte-collective";
+    for (const pathname of ["/carte-collective", "/carte-collective/moderation"]) {
+      expect(decideAccess(ctx({ pathname }))).toEqual({ type: "redirect", to: login });
+      expect(decideAccess(ctx({ pathname, demo: true }))).toEqual({ type: "redirect", to: login });
+      expect(decideAccess(ctx({ pathname, signedIn: true }))).toEqual({ type: "next" });
+      expect(decideAccess(ctx({ pathname, accountsEnabled: false }))).toEqual({ type: "next" });
+    }
+    expect(decideAccess(ctx({ pathname: "/carte-collective", method: "POST" }))).toEqual({ type: "next" });
+    expect(decideAccess(ctx({ pathname: "/carte-collectivex" }))).toEqual({ type: "next" });
+  });
+
   it("ne redirige pas les Server Actions (POST) : elles vérifient elles-mêmes l'utilisateur", () => {
     expect(decideAccess(ctx({ pathname: "/carte", method: "POST" }))).toEqual({ type: "next" });
     expect(decideAccess(ctx({ pathname: "/connexion", signedIn: true, method: "POST" }))).toEqual({ type: "next" });

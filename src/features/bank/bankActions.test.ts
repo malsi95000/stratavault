@@ -13,6 +13,7 @@ import {
   BANK_SAVE_FAILED,
   BANK_UNAVAILABLE,
   DELETE_QUESTION,
+  DELETE_SHARED_QUESTION,
   DISCARD_QUESTION,
   LOAD_FAILED_QUESTION,
   MAP_MISSING,
@@ -334,6 +335,16 @@ describe("« Supprimer »", () => {
     );
     expect(await deleteMap(deps, "m1")).toBe(false);
     expect(asked).toEqual([DELETE_QUESTION]);
+    expect(await repo.get("m1")).not.toBeNull();
+  });
+
+  it("carte partagée : la confirmation prévient que ses membres perdent l'accès", async () => {
+    const { deps, repo, asked } = await setup({ confirm: [false] }, (r) =>
+      r.create("Sahel", blankDoc(), "m1").then(() => undefined),
+    );
+    expect(await deleteMap(deps, "m1", true)).toBe(false);
+    expect(asked).toEqual([DELETE_SHARED_QUESTION]);
+    expect(DELETE_SHARED_QUESTION).toContain("ses membres n’y auront plus accès");
     expect(await repo.get("m1")).not.toBeNull();
   });
 

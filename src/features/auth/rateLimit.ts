@@ -168,6 +168,26 @@ const limiters = {
   // coûte un appel /token) et téléchargement des données (lit toutes les cartes du compte).
   deleteAccountByIp: createRateLimiter({ limit: 10, windowMs: 15 * MINUTE }),
   exportByIp: createRateLimiter({ limit: 20, windowMs: 15 * MINUTE }),
+  // Profils (« Mon profil », pages des membres, avatars) : la base tient aussi ses propres limites
+  // par compte (public.rate_limits) ; celles-ci protègent d'abord le serveur et les quotas de Supabase.
+  profileWriteByIp: createRateLimiter({ limit: 30, windowMs: 15 * MINUTE }),
+  // Envoi d'un avatar : décodage et ré-encodage de l'image (coûteux), puis envoi à Storage.
+  avatarUploadByIp: createRateLimiter({ limit: 10, windowMs: 15 * MINUTE }),
+  profileLookupByIp: createRateLimiter({ limit: 120, windowMs: 5 * MINUTE }),
+  // Affichage des avatars : une lecture dans Storage par image.
+  avatarReadByIp: createRateLimiter({ limit: 600, windowMs: 5 * MINUTE }),
+  // Contacts (demandes, réponses, retraits, blocages) : la base tient ses propres limites par compte.
+  contactWriteByIp: createRateLimiter({ limit: 60, windowMs: 15 * MINUTE }),
+  // Partage des cartes (invitations, liens, membres, départ) : la base tient ses propres limites par compte.
+  shareWriteByIp: createRateLimiter({ limit: 60, windowMs: 15 * MINUTE }),
+  // Carte collective : lectures (état toutes les 30 secondes, carte entière, file de modération) et
+  // écritures (ajouts, modifications, suppressions, signalements, décisions). La base tient ses
+  // propres limites par compte (1 200 lectures d'état et 240 lectures de la carte par heure). Un
+  // membre qui garde la carte ouverte fait jusqu'à une vingtaine de lectures par 5 minutes : la limite
+  // par IP laisse passer un groupe derrière la même adresse (une classe, un réseau d'entreprise),
+  // soit environ 75 membres.
+  collectiveReadByIp: createRateLimiter({ limit: 1_500, windowMs: 5 * MINUTE }),
+  collectiveWriteByIp: createRateLimiter({ limit: 300, windowMs: 5 * MINUTE }),
 };
 
 export type AuthAttempt =
@@ -179,7 +199,15 @@ export type AuthAttempt =
   | "refresh"
   | "signOut"
   | "deleteAccount"
-  | "export";
+  | "export"
+  | "profileWrite"
+  | "avatarUpload"
+  | "profileLookup"
+  | "avatarRead"
+  | "contactWrite"
+  | "shareWrite"
+  | "collectiveRead"
+  | "collectiveWrite";
 
 /**
  * - `allowed` : la tentative peut être faite ;
@@ -199,6 +227,14 @@ const byIpLimiters = {
   signOut: limiters.signOutByIp,
   deleteAccount: limiters.deleteAccountByIp,
   export: limiters.exportByIp,
+  profileWrite: limiters.profileWriteByIp,
+  avatarUpload: limiters.avatarUploadByIp,
+  profileLookup: limiters.profileLookupByIp,
+  avatarRead: limiters.avatarReadByIp,
+  contactWrite: limiters.contactWriteByIp,
+  shareWrite: limiters.shareWriteByIp,
+  collectiveRead: limiters.collectiveReadByIp,
+  collectiveWrite: limiters.collectiveWriteByIp,
 };
 
 const byEmailLimiters: Partial<Record<AuthAttempt, { pair: RateLimiter; ceiling: RateLimiter }>> = {
@@ -229,6 +265,7 @@ export function checkAttempt(attempt: AuthAttempt, ip: string, email?: string): 
 const accountLimiters = {
   deleteAccount: createRateLimiter({ limit: 5, windowMs: 60 * MINUTE }),
   export: createRateLimiter({ limit: 10, windowMs: 60 * MINUTE }),
+  avatarUpload: createRateLimiter({ limit: 10, windowMs: 60 * MINUTE }),
 };
 
 export type AccountAttempt = keyof typeof accountLimiters;

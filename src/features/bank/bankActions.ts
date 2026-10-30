@@ -11,6 +11,9 @@ export const UNSAVED_MAP_QUESTION =
   "Votre carte actuelle n’est pas enregistrée dans la banque. L’enregistrer avant de continuer ?";
 export const RENAME_PROMPT = "Nouveau nom :";
 export const DELETE_QUESTION = "Supprimer définitivement cette carte de la banque ?";
+/** Carte du compte qui a des membres : ils perdent l'accès, sans en être prévenus. */
+export const DELETE_SHARED_QUESTION =
+  "Supprimer définitivement cette carte de la banque ? Elle est partagée : ses membres n’y auront plus accès (ils n’en sont pas prévenus), et ses invitations et liens d’invitation seront supprimés.";
 export const DISCARD_QUESTION =
   "Des modifications n’ont pas pu être enregistrées. Continuer quand même ? Elles seront perdues.";
 export const BANK_SAVE_FAILED = "Enregistrement dans la banque impossible : votre carte actuelle n’a pas été remplacée.";
@@ -195,10 +198,14 @@ export async function setCover(deps: BankDeps, id: string, cover: MapCover | nul
   return false;
 }
 
-/** « Supprimer » après confirmation ; si c'était la carte active, elle ne l'est plus. true : carte supprimée. */
-export function deleteMap(deps: BankDeps, id: string): Promise<boolean> {
+/**
+ * « Supprimer » après confirmation ; si c'était la carte active, elle ne l'est plus. true : carte
+ * supprimée. `shared` : la carte a des membres (mode compte), la confirmation le rappelle.
+ */
+export function deleteMap(deps: BankDeps, id: string, shared = false): Promise<boolean> {
   return guarded(deps, false, async () => {
-    const confirmed = await deps.dialogs.confirm(DELETE_QUESTION, { confirmLabel: "Supprimer", destructive: true });
+    const question = shared ? DELETE_SHARED_QUESTION : DELETE_QUESTION;
+    const confirmed = await deps.dialogs.confirm(question, { confirmLabel: "Supprimer", destructive: true });
     if (confirmed) await deps.persistence.deleteMap(id);
     return confirmed;
   });

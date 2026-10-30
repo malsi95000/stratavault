@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import BackLink from "@/components/BackLink";
 import SiteFooter from "@/components/SiteFooter";
 import PageBackdrop from "@/components/backdrop/PageBackdrop";
-import { LEGAL_PAGES, LEGAL_UPDATED_ON, type LegalPageHref } from "@/lib/legal";
+import { termsInForceNotice } from "@/features/legal/termsChange";
+import { LEGAL_PAGE, LEGAL_PAGES, LEGAL_UPDATED_ON, type LegalPageHref } from "@/lib/legal";
 import type { SectionLink } from "./LegalSection";
 import TableOfContents from "./TableOfContents";
 import { paragraph, textLink } from "./prose";
@@ -17,9 +18,11 @@ type Props = {
   children: ReactNode;
 };
 
-/** Mise en page d'un document légal : retour, titre, date de mise à jour, sommaire, liens croisés. */
+/** Mise en page d'un document légal : retour, titre, date de mise à jour (et d'entrée en vigueur), sommaire, liens croisés. */
 export default function LegalDocument({ current, title, lead, sections, children }: Props) {
   const others = LEGAL_PAGES.filter(({ href }) => href !== current);
+  // Date d'entrée en vigueur des textes changés (CGU et politique de confidentialité), une fois fixée.
+  const inForce = current === LEGAL_PAGE.terms.href || current === LEGAL_PAGE.privacy.href ? termsInForceNotice() : null;
 
   return (
     <>
@@ -28,6 +31,7 @@ export default function LegalDocument({ current, title, lead, sections, children
         <BackLink href="/" label="Retour à l’accueil" />
         <h1 className="brut mt-[30px] mb-3 text-[clamp(28px,5vw,44px)]">{title}</h1>
         <p className="text-[13px] text-mute">Dernière mise à jour : {LEGAL_UPDATED_ON}</p>
+        {inForce && <p className="text-[13px] text-mute">{inForce}</p>}
         <p className={paragraph}>{lead}</p>
         <TableOfContents sections={sections} />
         {children}

@@ -27,3 +27,21 @@ describe("rubrique « Supprimer mon compte »", () => {
     expect(html).toContain(`href="${LEGAL_PAGE.privacy.href}#traitements"`);
   });
 });
+
+describe("« Mon compte » et la carte collective", () => {
+  const html = () => renderToStaticMarkup(createElement(AccountPanel, { account }));
+
+  it("le téléchargement annonce les contributions à la carte collective et le logo des cartes", () => {
+    const text = html().replace(/\s+/g, " ");
+    for (const part of ["vos contributions à la carte collective", "masqués compris", "les identifiants de vos éléments", "logo ou aperçu"]) {
+      expect(text, part).toContain(part);
+    }
+  });
+
+  it("la suppression annonce l'effet sur la carte collective et sur les cartes partagées", () => {
+    const text = html().replace(/\s+/g, " ");
+    expect(text).toContain("ses éléments de la carte collective et les signalements qui les visent");
+    expect(text).toContain("les membres de vos cartes n’y ont plus accès");
+    expect(text).toContain("les décisions de modération inscrites au journal (un an)");
+  });
+});

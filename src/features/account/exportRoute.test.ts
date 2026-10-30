@@ -43,14 +43,106 @@ const mocks = vi.hoisted(() => ({
   queries: [] as { columns: string; filters: [string, unknown][] }[],
   /** Échec de la lecture du contenu d'une carte (après le début du fichier). */
   dataError: { value: null as { code: string } | null },
+  /** Profils (table profiles simulée, SANS RLS : la route filtre sur user_id) et fichiers d'avatar. */
+  profiles: [] as Record<string, unknown>[],
+  profileFilters: [] as [string, unknown][][],
+  avatars: new Map<string, Uint8Array>(),
+  /** Compteurs anti-abus du compte (réponse de my_rate_limits) ; erreur de Storage simulée. */
+  counters: [] as { action: string; window_start: string; hits: number }[],
+  /** Fichiers du compte dans le compartiment (my_avatar_files) et autorisations (my_avatar_read_grants). */
+  ownFiles: [] as string[],
+  grants: [] as { avatar_id: string; expires_at: string }[],
+  /** Jeton d'envoi d'avatar (my_avatar_upload_ticket). */
+  tickets: [] as { avatar_id: string; expires_at: string }[],
+  /** Contacts, demandes et blocages (my_contacts, my_contact_requests, my_blocked_members). */
+  contacts: [] as unknown[],
+  contactRequests: [] as unknown[],
+  blocks: [] as unknown[],
+  /** Partages de cartes (maps_shared_with_me, my_map_invitations, my_map_shares, my_map_locks, my_map_link_uses). */
+  sharedMaps: [] as unknown[],
+  mapInvitations: [] as unknown[],
+  mapShares: [] as unknown[],
+  mapLocks: [] as unknown[],
+  mapLinkUses: [] as unknown[],
+  /** Carte collective (my_collective_items, my_collective_reports, my_collective_notices, my_collective_decisions, my_moderation_decisions). */
+  collectiveItems: [] as unknown[],
+  collectiveReports: [] as unknown[],
+  collectiveNotices: [] as unknown[],
+  collectiveDecisions: [] as unknown[],
+  moderationDecisions: [] as unknown[],
+  /** Situation du compte et identifiants utilisés (my_collective_account, my_collective_item_ids). */
+  collectiveAccount: [] as unknown[],
+  collectiveItemIds: [] as unknown[],
+  /** Échec simulé d'une fonction de la base (code PostgreSQL ou PostgREST). */
+  rpcError: { value: null as string | null, code: "57014" },
+  storageDown: { value: false },
 }));
+
+/** Table profiles simulée : une ligne choisie par les filtres (maybeSingle). */
+function profilesTable() {
+  const filters: [string, unknown][] = [];
+  mocks.profileFilters.push(filters);
+  const builder = {
+    select: () => builder,
+    eq: (column: string, value: unknown) => (filters.push([column, value]), builder),
+    maybeSingle: async () => ({
+      data: mocks.profiles.find((r) => filters.every(([column, value]) => r[column] === value)) ?? null,
+      error: null,
+    }),
+  };
+  return builder;
+}
+
+/** Compartiment « avatars » simulé. */
+const storage = {
+  from: (bucket: string) => {
+    expect(bucket).toBe("avatars");
+    return {
+      download: async (path: string) => {
+        if (mocks.storageDown.value) return { data: null, error: { status: 503, statusCode: "503", message: "down" } };
+        const bytes = mocks.avatars.get(path);
+        return bytes
+          ? { data: new Blob([bytes as BlobPart]), error: null }
+          : { data: null, error: { status: 400, statusCode: "404", message: "Object not found" } };
+      },
+    };
+  },
+};
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => {
     if (!mocks.configured.value) return null;
     return {
       auth: { getUser: mocks.getUser },
+      storage,
+      rpc: async (fn: string) => {
+        if (fn === mocks.rpcError.value) return { data: null, error: { code: mocks.rpcError.code, message: "erreur" } };
+        const results: Record<string, unknown> = {
+          my_rate_limits: mocks.counters,
+          my_avatar_files: mocks.ownFiles,
+          my_avatar_read_grants: mocks.grants,
+          my_avatar_upload_ticket: mocks.tickets,
+          my_contacts: mocks.contacts,
+          my_contact_requests: mocks.contactRequests,
+          my_blocked_members: mocks.blocks,
+          maps_shared_with_me: mocks.sharedMaps,
+          my_map_invitations: mocks.mapInvitations,
+          my_map_shares: mocks.mapShares,
+          my_map_locks: mocks.mapLocks,
+          my_map_link_uses: mocks.mapLinkUses,
+          my_collective_items: mocks.collectiveItems,
+          my_collective_reports: mocks.collectiveReports,
+          my_collective_notices: mocks.collectiveNotices,
+          my_collective_decisions: mocks.collectiveDecisions,
+          my_moderation_decisions: mocks.moderationDecisions,
+          my_collective_account: mocks.collectiveAccount,
+          my_collective_item_ids: mocks.collectiveItemIds,
+        };
+        expect(Object.keys(results)).toContain(fn);
+        return { data: results[fn], error: null };
+      },
       from: (table: string) => {
+        if (table === "profiles") return profilesTable();
         expect(table).toBe("maps");
         const query = { columns: "", filters: [] as [string, unknown][] };
         mocks.queries.push(query);
@@ -110,6 +202,31 @@ beforeEach(() => {
   mocks.dbError.value = null;
   mocks.dataError.value = null;
   mocks.queries.length = 0;
+  mocks.profiles = [];
+  mocks.profileFilters.length = 0;
+  mocks.avatars.clear();
+  mocks.counters = [];
+  mocks.ownFiles = [];
+  mocks.grants = [];
+  mocks.tickets = [];
+  mocks.contacts = [];
+  mocks.contactRequests = [];
+  mocks.blocks = [];
+  mocks.sharedMaps = [];
+  mocks.mapInvitations = [];
+  mocks.mapShares = [];
+  mocks.mapLocks = [];
+  mocks.mapLinkUses = [];
+  mocks.collectiveItems = [];
+  mocks.collectiveReports = [];
+  mocks.collectiveNotices = [];
+  mocks.collectiveDecisions = [];
+  mocks.moderationDecisions = [];
+  mocks.collectiveAccount = [];
+  mocks.collectiveItemIds = [];
+  mocks.rpcError.value = null;
+  mocks.rpcError.code = "57014";
+  mocks.storageDown.value = false;
   resetExportSlots();
   mocks.getUser.mockReset();
   signedInAs(ALICE);
@@ -170,6 +287,282 @@ describe("GET /compte/export", () => {
         data: { notes: { FRA: "Sahel" } },
       },
     ]);
+  });
+
+  it("inclut le profil du compte vérifié et l'image de son avatar ; null sans profil", async () => {
+    expect((await (await GET(get())).json()).profile).toBeNull();
+    const avatarId = "99999999-9999-4999-8999-999999999999";
+    const webp = new Uint8Array([...Buffer.from("RIFF"), 4, 0, 0, 0, ...Buffer.from("WEBPVP8 "), 1, 2]);
+    mocks.avatars.set(avatarId, webp);
+    const profileRow = (userId: string, handle: string) => ({
+      user_id: userId,
+      handle,
+      display_name: handle,
+      bio: "Bio",
+      visibility: "members",
+      avatar_id: userId === ALICE ? avatarId : null,
+      handle_changed_at: "2026-10-10T11:00:00+00:00",
+      created_at: "2026-10-10T10:00:00+00:00",
+      updated_at: "2026-10-11T10:00:00+00:00",
+    });
+    mocks.profiles = [profileRow(BOB, "bob"), profileRow(ALICE, "alice")];
+    resetAuthRateLimits();
+    resetExportSlots();
+    const body = await (await GET(get())).json();
+    expect(body.version).toBe(2);
+    expect(body.profile).toEqual({
+      handle: "alice",
+      displayName: "alice",
+      bio: "Bio",
+      visibility: "members",
+      handleChangedAt: "2026-10-10T11:00:00+00:00",
+      createdAt: "2026-10-10T10:00:00+00:00",
+      updatedAt: "2026-10-11T10:00:00+00:00",
+      avatar: { contentType: "image/webp", base64: Buffer.from(webp).toString("base64") },
+    });
+    // Lu sur la ligne du compte vérifié seulement.
+    expect(mocks.profileFilters.at(-1)).toEqual([["user_id", ALICE]]);
+
+    // Storage injoignable : l'export échoue (jamais d'avatar omis sans le dire) ; fichier absent : null.
+    mocks.storageDown.value = true;
+    resetAuthRateLimits();
+    resetExportSlots();
+    const failed = await GET(get());
+    expect(failed.status).toBe(303);
+    expect(failed.headers.get("Location")).toContain("erreur=indisponible");
+    mocks.storageDown.value = false;
+    mocks.avatars.clear();
+    resetAuthRateLimits();
+    resetExportSlots();
+    expect((await (await GET(get())).json()).profile.avatar).toBeNull();
+  });
+
+  it("inclut les compteurs anti-abus du compte tenus par la base", async () => {
+    mocks.counters = [{ action: "profile_lookup", window_start: "2026-10-12T08:00:00+00:00", hits: 4 }];
+    const body = await (await GET(get())).json();
+    expect(body.securityCounters).toEqual([{ action: "profile_lookup", windowStart: "2026-10-12T08:00:00+00:00", hits: 4 }]);
+    expect(Object.keys(body)).toEqual([
+      "format",
+      "version",
+      "note",
+      "exportedAt",
+      "account",
+      "profile",
+      "otherAvatarFiles",
+      "avatarReadGrants",
+      "avatarUploadTicket",
+      "contacts",
+      "contactRequests",
+      "blockedMembers",
+      "sharedWithMe",
+      "mapInvitations",
+      "mapShares",
+      "mapLocks",
+      "mapLinkUses",
+      "collectiveItems",
+      "collectiveReports",
+      "collectiveNotices",
+      "collectiveDecisions",
+      "collectiveAccount",
+      "collectiveItemIds",
+      "moderationDecisions",
+      "securityCounters",
+      "maps",
+    ]);
+  });
+
+  it("inclut les autres fichiers d'avatar du compte et ses autorisations d'affichage d'avatars", async () => {
+    const current = "99999999-9999-4999-8999-999999999999";
+    const leftover = "88888888-8888-4888-8888-888888888888";
+    const gone = "77777777-7777-4777-8777-777777777777";
+    mocks.profiles = [
+      {
+        user_id: ALICE,
+        handle: "alice",
+        display_name: "Alice",
+        bio: "",
+        visibility: "members",
+        avatar_id: current,
+        handle_changed_at: "2026-10-10T11:00:00+00:00",
+        created_at: "2026-10-10T10:00:00+00:00",
+        updated_at: "2026-10-11T10:00:00+00:00",
+      },
+    ];
+    mocks.avatars.set(current, new Uint8Array([1, 2, 3]));
+    mocks.avatars.set(leftover, new Uint8Array([4, 5]));
+    // Fichier listé mais effacé avant sa lecture : omis.
+    mocks.ownFiles = [current, gone, leftover];
+    mocks.grants = [{ avatar_id: "66666666-6666-4666-8666-666666666666", expires_at: "2026-10-12T08:01:00+00:00" }];
+    mocks.tickets = [{ avatar_id: "55555555-5555-4555-8555-555555555555", expires_at: "2026-10-12T08:05:00+00:00" }];
+    const body = await (await GET(get())).json();
+    expect(body.profile.avatar.base64).toBe(Buffer.from([1, 2, 3]).toString("base64"));
+    expect(body.otherAvatarFiles).toEqual([{ contentType: "image/webp", base64: Buffer.from([4, 5]).toString("base64") }]);
+    expect(body.avatarReadGrants).toEqual([
+      { avatarId: "66666666-6666-4666-8666-666666666666", expiresAt: "2026-10-12T08:01:00+00:00" },
+    ]);
+    expect(body.avatarUploadTicket).toEqual({
+      avatarId: "55555555-5555-4555-8555-555555555555",
+      expiresAt: "2026-10-12T08:05:00+00:00",
+    });
+
+    // Liste des fichiers, des autorisations ou du jeton illisible : l'export échoue, rien n'est omis
+    // sans le dire.
+    for (const fn of ["my_avatar_files", "my_avatar_read_grants", "my_avatar_upload_ticket"]) {
+      mocks.rpcError.value = fn;
+      resetAuthRateLimits();
+      resetExportSlots();
+      const failed = await GET(get());
+      expect(failed.headers.get("Location"), fn).toContain("erreur=indisponible");
+    }
+  });
+
+  it("inclut les contacts, les demandes en cours et les blocages, sans identifiant de compte", async () => {
+    mocks.contacts = [{ id: "c1", handle: "bob", display_name: "Bob", avatar_id: null, created_at: "2026-10-12T08:00:00+00:00" }];
+    mocks.contactRequests = [
+      { id: "r1", direction: "incoming", handle: "carol", display_name: "Carol", avatar_id: null, created_at: "2026-10-13T08:00:00+00:00" },
+      { id: "r2", direction: "outgoing", handle: "dave", display_name: null, avatar_id: null, created_at: "2026-10-14T08:00:00+00:00" },
+    ];
+    mocks.blocks = [
+      { id: "b1", handle: "eve", created_at: "2026-10-16T08:00:00+00:00" },
+      { id: "b2", handle: null, created_at: "2026-10-15T08:00:00+00:00" },
+    ];
+    const body = await (await GET(get())).json();
+    expect(body.contacts).toEqual([{ handle: "bob", displayName: "Bob", since: "2026-10-12T08:00:00+00:00" }]);
+    expect(body.contactRequests).toEqual([
+      { direction: "incoming", handle: "carol", displayName: "Carol", createdAt: "2026-10-13T08:00:00+00:00" },
+      { direction: "outgoing", handle: "dave", displayName: null, createdAt: "2026-10-14T08:00:00+00:00" },
+    ]);
+    expect(body.blockedMembers).toEqual([
+      { handle: "eve", blockedAt: "2026-10-16T08:00:00+00:00" },
+      { handle: null, blockedAt: "2026-10-15T08:00:00+00:00" },
+    ]);
+
+    // Liste illisible : l'export échoue ; base d'avant les contacts (fonction absente) : listes vides.
+    for (const fn of ["my_contacts", "my_contact_requests", "my_blocked_members"]) {
+      mocks.rpcError.value = fn;
+      mocks.rpcError.code = "57014";
+      resetAuthRateLimits();
+      resetExportSlots();
+      expect((await GET(get())).headers.get("Location"), fn).toContain("erreur=indisponible");
+      mocks.rpcError.code = "PGRST202";
+      resetAuthRateLimits();
+      resetExportSlots();
+      const response = await GET(get());
+      expect(response.status, fn).toBe(200);
+      await response.text();
+    }
+  });
+
+  it("inclut les partages de cartes, sans identifiant de compte ni jeton de lien", async () => {
+    const map = "12345678-1234-4234-8234-123456789abc";
+    mocks.sharedMaps = [
+      { id: map, name: "Sahel", role: "reader", updated_at: "2026-10-20T08:00:00+00:00", stats: null, owner_handle: "bob", owner_display_name: "Bob", joined_at: "2026-10-19T08:00:00+00:00" },
+    ];
+    mocks.mapInvitations = [
+      { id: "i1", map_name: "Arctique", role: "editor", owner_handle: "carol", owner_display_name: "Carol", created_at: "2026-10-18T08:00:00+00:00", expires_at: "2026-11-17T08:00:00+00:00" },
+    ];
+    mocks.mapShares = [
+      { map_id: map, kind: "link", id: "l1", handle: null, display_name: null, role: "reader", uses: 1, max_uses: 5, created_at: "t1", expires_at: "t2" },
+    ];
+    mocks.mapLocks = [{ map_id: map, acquired_at: "t3", expires_at: "t4" }];
+    mocks.mapLinkUses = [{ map_id: map, used_at: "t5" }];
+    const body = await (await GET(get())).json();
+    expect(body.sharedWithMe).toEqual([
+      { mapId: map, name: "Sahel", role: "reader", ownerHandle: "bob", ownerName: "Bob", joinedAt: "2026-10-19T08:00:00+00:00" },
+    ]);
+    expect(body.mapInvitations).toEqual([
+      { mapName: "Arctique", role: "editor", ownerHandle: "carol", ownerName: "Carol", createdAt: "2026-10-18T08:00:00+00:00", expiresAt: "2026-11-17T08:00:00+00:00" },
+    ]);
+    expect(body.mapShares).toEqual([
+      { mapId: map, kind: "link", handle: null, displayName: null, role: "reader", uses: 1, maxUses: 5, createdAt: "t1", expiresAt: "t2" },
+    ]);
+    expect(body.mapLocks).toEqual([{ mapId: map, acquiredAt: "t3", expiresAt: "t4" }]);
+    expect(body.mapLinkUses).toEqual([{ mapId: map, usedAt: "t5" }]);
+
+    // Liste illisible : l'export échoue ; base d'avant le partage (fonction absente) : listes vides.
+    for (const fn of ["maps_shared_with_me", "my_map_invitations", "my_map_shares", "my_map_locks", "my_map_link_uses"]) {
+      mocks.rpcError.value = fn;
+      mocks.rpcError.code = "57014";
+      resetAuthRateLimits();
+      resetExportSlots();
+      expect((await GET(get())).headers.get("Location"), fn).toContain("erreur=indisponible");
+      mocks.rpcError.code = "PGRST202";
+      resetAuthRateLimits();
+      resetExportSlots();
+      const response = await GET(get());
+      expect(response.status, fn).toBe(200);
+      await response.text();
+    }
+  });
+
+  it("inclut la carte collective du compte : éléments, signalements, avis, situation, identifiants, décisions", async () => {
+    const data = { ll: [2, 48], type: "crise", title: "T", note: "" };
+    mocks.collectiveItems = [{ id: "p1", kind: "ping", data, status: "hidden", created_at: "t1", updated_at: "t2" }];
+    mocks.collectiveReports = [{ item_id: "x1", reason: "spam", details: "", status: "open", created_at: "t3", resolved_at: null }];
+    mocks.collectiveNotices = [
+      { id: "n1", role: "author", action: "hide", item_id: "p1", item_kind: "ping", item_title: "T", reason: "Motif", reports: 2, suspended_until: "2026-11-26T10:00:00Z", item_hidden: true, created_at: "2026-10-27T10:00:00Z", read_at: null },
+    ];
+    mocks.moderationDecisions = [
+      { id: "d1", action: "delete", item_id: "y1", item_kind: "point", item_title: "", reason: "Illicite", reports: 2, suspended_until: null, created_at: "t4" },
+    ];
+    mocks.collectiveDecisions = [
+      { id: "d2", action: "withdraw", item_id: "p3", item_kind: "ping", item_title: "Masqué", reason: "Retiré par son auteur.", reports: 0, suspended_until: null, created_at: "t5" },
+    ];
+    mocks.collectiveAccount = [{ moderator_since: null, suspended_until: "2026-11-26T10:00:00Z", suspended_at: "2026-10-27T10:00:00Z" }];
+    mocks.collectiveItemIds = [
+      { item_id: "p1", moderated: true },
+      { item_id: "p2", moderated: false },
+    ];
+    let body = await (await GET(get())).json();
+    expect(body.collectiveAccount).toEqual({
+      moderatorSince: null,
+      suspension: { until: "2026-11-26T10:00:00.000Z", createdAt: "2026-10-27T10:00:00.000Z" },
+    });
+    expect(body.collectiveItemIds).toEqual([
+      { itemId: "p1", moderated: true },
+      { itemId: "p2", moderated: false },
+    ]);
+    expect(body.collectiveItems).toEqual([{ id: "p1", kind: "ping", data, status: "hidden", createdAt: "t1", updatedAt: "t2" }]);
+    expect(body.collectiveReports).toEqual([{ itemId: "x1", reason: "spam", details: "", status: "open", createdAt: "t3", resolvedAt: null }]);
+    expect(body.collectiveNotices).toEqual([
+      { role: "author", action: "hide", itemId: "p1", itemKind: "ping", itemTitle: "T", reason: "Motif", reports: 2, suspendedUntil: "2026-11-26T10:00:00.000Z", createdAt: "2026-10-27T10:00:00.000Z", readAt: null },
+    ]);
+    expect(body.moderationDecisions).toEqual([
+      { action: "delete", itemId: "y1", itemKind: "point", itemTitle: "", reason: "Illicite", reports: 2, suspendedUntil: null, createdAt: "t4" },
+    ]);
+    expect(body.collectiveDecisions).toEqual([
+      { action: "withdraw", itemId: "p3", itemKind: "ping", itemTitle: "Masqué", reason: "Retiré par son auteur.", reports: 0, suspendedUntil: null, createdAt: "t5" },
+    ]);
+
+    // Modérateur sans suspension.
+    mocks.collectiveAccount = [{ moderator_since: "2026-10-20T10:00:00Z", suspended_until: null, suspended_at: null }];
+    resetAuthRateLimits();
+    resetExportSlots();
+    body = await (await GET(get())).json();
+    expect(body.collectiveAccount).toEqual({ moderatorSince: "2026-10-20T10:00:00.000Z", suspension: null });
+
+    // Liste illisible : l'export échoue ; base d'avant la carte collective (fonction absente) : listes vides.
+    for (const fn of [
+      "my_collective_items",
+      "my_collective_reports",
+      "my_collective_notices",
+      "my_collective_decisions",
+      "my_moderation_decisions",
+      "my_collective_account",
+      "my_collective_item_ids",
+    ]) {
+      mocks.rpcError.value = fn;
+      mocks.rpcError.code = "57014";
+      resetAuthRateLimits();
+      resetExportSlots();
+      expect((await GET(get())).headers.get("Location"), fn).toContain("erreur=indisponible");
+      mocks.rpcError.code = "PGRST202";
+      resetAuthRateLimits();
+      resetExportSlots();
+      const response = await GET(get());
+      expect(response.status, fn).toBe(200);
+      await response.text();
+    }
   });
 
   it("ne lit que les cartes de l'utilisateur vérifié (filtre user_id, en plus de la RLS)", async () => {

@@ -6,7 +6,7 @@ import { extraFichesOf } from "@/features/map-doc/fiches";
 import { MAX_FICHES_PER_ELEMENT, MAX_TOTAL_FICHES, isFicheFull } from "@/features/map-doc/limits";
 import { colorCss } from "@/features/map-doc/types";
 import type { ElementRef, ExtraFiche, MapDoc } from "@/features/map-doc/types";
-import { useEditorStore } from "@/features/editor/store";
+import { extrasAllowed, ficheReadOnly, useEditorStore } from "@/features/editor/store";
 import { cn } from "@/lib/utils";
 import { extraFicheTitle, frenchDate } from "./format";
 import { BTN, H3 } from "./styles";
@@ -31,8 +31,12 @@ export default function ExtraFichesList({ owner }: { owner: ElementRef }) {
   const doc = useEditorStore((s) => s.doc);
   const openExtraFiche = useEditorStore((s) => s.openExtraFiche);
   const addExtraFiche = useEditorStore((s) => s.addExtraFiche);
+  const readOnly = useEditorStore(ficheReadOnly);
+  const allowed = useEditorStore(extrasAllowed);
   const fiches = extraFichesOf(doc, owner);
   const full = isFicheFull(doc, owner);
+  // Carte qui n'accepte pas de fiches supplémentaires (carte collective) : rien à montrer.
+  if (!allowed) return null;
 
   return (
     <section aria-label="Fiches supplémentaires">
@@ -61,16 +65,20 @@ export default function ExtraFichesList({ owner }: { owner: ElementRef }) {
           })}
         </ul>
       )}
-      <button
-        type="button"
-        className={cn(BTN, "inline-flex items-center gap-1.5")}
-        disabled={full}
-        onClick={() => addExtraFiche(owner)}
-      >
-        <PlusIcon aria-hidden="true" className="size-4" />
-        Nouvelle fiche
-      </button>
-      {full && (
+      {readOnly ? (
+        fiches.length === 0 && <p className="m-0 text-[13px] text-mute">Aucune fiche supplémentaire.</p>
+      ) : (
+        <button
+          type="button"
+          className={cn(BTN, "inline-flex items-center gap-1.5")}
+          disabled={full}
+          onClick={() => addExtraFiche(owner)}
+        >
+          <PlusIcon aria-hidden="true" className="size-4" />
+          Nouvelle fiche
+        </button>
+      )}
+      {full && !readOnly && (
         <p className="mt-1.5 mb-0 text-xs text-mute">
           Nombre maximal de fiches atteint ({MAX_FICHES_PER_ELEMENT} par élément, {MAX_TOTAL_FICHES.toLocaleString("fr-FR")} par carte).
         </p>

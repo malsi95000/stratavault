@@ -5,6 +5,7 @@ import LegalSection from "@/components/legal/LegalSection";
 import StorageCard from "@/components/legal/StorageCard";
 import { list, paragraph, textLink } from "@/components/legal/prose";
 import { inventoryByKind } from "@/features/legal/storageInventory";
+import { AVATAR_CACHE_MAX_AGE_S } from "@/features/profiles/avatarResponse";
 
 export const metadata: Metadata = {
   title: "Cookies et stockage local",
@@ -36,6 +37,14 @@ export default function CookiesPage() {
             n’est affiché.
           </li>
           <li>Aucun cookie de mesure d’audience, de publicité ou de réseau social ; aucun traceur tiers.</li>
+          <li>
+            Comme toute image, un avatar de profil affiché (mode compte) est gardé dans le cache de votre navigateur,
+            réservé à ce navigateur (cache « privé ») : il y est considéré comme à jour pendant{" "}
+            {AVATAR_CACHE_MAX_AGE_S / 60} minutes, puis redemandé au site avant d’être réaffiché ; le navigateur peut en
+            garder la copie jusqu’à ce qu’il la remplace ou que vous vidiez le cache. Ce n’est pas un traceur. La carte collective, et les cartes d’autres
+            membres ouvertes dans l’éditeur coopératif, ne sont pas enregistrées dans le navigateur ; la carte en cours
+            de votre compte, partagée ou non, l’est (stratavault-u-&lt;identifiant du compte&gt;, ci-dessous).
+          </li>
           <li>
             Les données personnelles associées sont décrites dans la{" "}
             <Link href="/confidentialite" className={textLink}>

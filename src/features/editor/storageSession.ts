@@ -18,6 +18,9 @@ type Session = { key: string; mode: StorageMode; repo: MapRepository; persistenc
 const remote: RemoteMapsApi = { listMaps, getMap, createMap, updateMap, renameMap, setMapCover, deleteMap };
 
 let session: Session | null = null;
+// Session dont la fermeture a été demandée par l'éditeur coopératif (suspendStorage), en attendant
+// l'envoi de ses modifications.
+let suspending: Session | null = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
@@ -81,7 +84,12 @@ function closeSession() {
 /** Active le dépôt du mode donné (sans effet s'il l'est déjà). À appeler depuis un effet. */
 export function activateStorage(mode: StorageMode) {
   const key = storageKey(mode);
-  if (session?.key === key) return;
+  if (session?.key === key) {
+    // Une page a de nouveau besoin de la session pendant sa suspension (retour rapide depuis une
+    // carte partagée) : elle reste ouverte.
+    if (session === suspending) suspending = null;
+    return;
+  }
   closeSession();
   // Toujours un éditeur vide au départ, même si rien n'était actif : rien d'une session précédente
   // (lecture terminée après sa fermeture…) ne peut s'afficher dans celle-ci.
@@ -98,6 +106,29 @@ export function activateStorage(mode: StorageMode) {
 export function getPersistence(): Persistence {
   if (!session) throw new Error("Aucun dépôt actif : rendre ce composant sous <StorageScope>.");
   return session.persistence;
+}
+
+/**
+ * Éditeur coopératif (carte partagée) : rien de la carte partagée ne doit passer par la persistance
+ * du compte (brouillon, carte active, banque). La session active, s'il y en a une, envoie d'abord ses
+ * modifications en attente, puis elle est fermée et l'éditeur vidé ; StorageScope la rouvrira sur la
+ * prochaine page qui en a besoin (/carte, /espace). true : plus aucune session n'est ouverte ; false :
+ * une page l'a réactivée pendant l'envoi, elle reste ouverte (l'appelant recommence s'il en a encore
+ * besoin).
+ */
+export async function suspendStorage(): Promise<boolean> {
+  const current = session;
+  if (!current) return true;
+  suspending = current;
+  await current.persistence.flush();
+  // Fermée seulement si personne ne l'a réactivée pendant l'envoi (activateStorage, page /carte ou
+  // /espace rouverte entre-temps) : sinon la page qui vient de s'afficher perdrait son éditeur.
+  if (session === current && suspending === current) {
+    suspending = null;
+    closeSession();
+    notify();
+  }
+  return session === null;
 }
 
 /** Force l'écriture de la sauvegarde en attente (avant une navigation) ; false si elle a échoué. */

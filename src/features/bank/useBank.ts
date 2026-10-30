@@ -113,8 +113,8 @@ export function useBank() {
     newMap: () => openEditor(actions.startNewMap),
     continueMap: (item: BankItem) => openEditor((d) => actions.continueMap(d, item.id)),
     renameMap: (item: BankItem) => exclusive(undefined, (d) => actions.renameMap(d, item)),
-    /** true si la carte a été supprimée (la liste est déjà relue). */
-    deleteMap: (item: BankItem) => exclusive(false, (d) => actions.deleteMap(d, item.id)),
+    /** true si la carte a été supprimée (la liste est déjà relue). `shared` : la carte a des membres. */
+    deleteMap: (item: BankItem, shared = false) => exclusive(false, (d) => actions.deleteMap(d, item.id, shared)),
     /** true si le logo a été enregistré (la liste est déjà relue). */
     changeCover: (item: BankItem, cover: MapCover | null) => exclusive(false, (d) => actions.setCover(d, item.id, cover)),
     /** Contenu d'une carte, pour son aperçu ; null si elle est illisible ou n'existe plus (rejette si la banque est inaccessible). */

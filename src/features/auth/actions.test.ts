@@ -213,6 +213,14 @@ describe("signIn", () => {
     expect(JSON.stringify(state)).not.toContain("ECONNREFUSED");
   });
 
+  it("ramène à la carte collective si la connexion a été demandée pour elle ; ailleurs, jamais", async () => {
+    mocks.auth.signInWithPassword.mockResolvedValue({ data: {}, error: null });
+    const withNext = (next: string) => form({ email: "vous@exemple.fr", password: PASSWORD, next });
+    expect(await redirectOf(() => signIn(INITIAL_AUTH_STATE, withNext("/carte-collective")))).toBe("/carte-collective");
+    expect(await redirectOf(() => signIn(INITIAL_AUTH_STATE, withNext("https://evil.example/")))).toBe("/espace");
+    expect(await redirectOf(() => signIn(INITIAL_AUTH_STATE, withNext("/compte")))).toBe("/espace");
+  });
+
   it("connecte, quitte le mode démo et redirige vers /espace", async () => {
     mocks.jar.set("sv-demo", { value: "1" });
     mocks.auth.signInWithPassword.mockResolvedValueOnce({ data: {}, error: null });

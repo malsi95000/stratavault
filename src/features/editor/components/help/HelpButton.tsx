@@ -5,6 +5,7 @@ import type { ComponentProps } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { tutorialFor } from "@/features/editor/help/tutorials";
 import type { HelpTopic } from "@/features/editor/help/tutorials";
+import { useEditorStore } from "@/features/editor/store";
 import { cn } from "@/lib/utils";
 import TutorialCard from "./TutorialCard";
 
@@ -17,7 +18,8 @@ export const helpLabel = (topic: HelpTopic) => `Aide : ${tutorialFor(topic).titl
 /**
  * Petit bouton « ? » qui affiche le tutoriel d'un outil, d'une vue, des filtres ou des catégories
  * (EDI-10), dans une fenêtre non modale (Popover) : Entrée ou Espace l'ouvre, le focus y entre,
- * Échap ou un clic ailleurs la ferme et le focus revient au bouton.
+ * Échap ou un clic ailleurs la ferme et le focus revient au bouton. Dans la carte collective (règles
+ * d'édition posées par sa session), le tutoriel décrit ses règles propres.
  */
 export default function HelpButton({
   topic,
@@ -32,6 +34,7 @@ export default function HelpButton({
 }) {
   const titleId = useId();
   const label = helpLabel(topic);
+  const collective = useEditorStore((s) => s.editRules !== null);
   return (
     <Popover>
       <PopoverTrigger
@@ -62,7 +65,7 @@ export default function HelpButton({
           if (e.key === "Escape") e.stopPropagation();
         }}
       >
-        <TutorialCard tutorial={tutorialFor(topic)} titleId={titleId} />
+        <TutorialCard tutorial={tutorialFor(topic, { collective })} titleId={titleId} />
       </PopoverContent>
     </Popover>
   );

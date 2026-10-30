@@ -3,14 +3,15 @@
 // distante (mode compte), le brouillon local est écrit d'abord : une erreur réseau ne perd rien, et
 // les modifications non envoyées sont renvoyées au chargement suivant. Chaque envoi porte la version
 // de la banque dont dérive le document : une version plus récente (autre appareil) n'est jamais
-// écrasée, la carte est alors détachée et reste dans l'éditeur.
+// écrasée, la carte est alors détachée et reste dans l'éditeur. De même pour une carte partagée qu'un
+// membre modifie (verrou d'édition, « locked ») : elle n'est ni écrasée ni renvoyée.
 // Les actions explicites (banque, nouvelle carte…) sont dans bankOperations.ts.
 import type { MapEntry, MapRepository } from "@/features/storage";
-import { MapConflictError } from "@/features/storage";
+import { MapConflictError, RemoteBankError } from "@/features/storage";
 import type { MapDoc } from "@/features/map-doc/types";
 import type { StoreApi } from "zustand/vanilla";
 import { loadEditorState } from "./loadEditorState";
-import { DEMO_MESSAGES, MAP_CONFLICT, MAP_GONE, SAVE_DELAY_MS } from "./saveStatus";
+import { DEMO_MESSAGES, MAP_CONFLICT, MAP_GONE, MAP_SHARED_LOCKED, SAVE_DELAY_MS } from "./saveStatus";
 import type { PersistenceMessages, PersistenceOptions, RemoteOptions } from "./saveStatus";
 import type { EditorState } from "./store";
 import { createSyncBaseTracker } from "./syncBase";
@@ -31,9 +32,12 @@ export type AutoSave = {
   switchTo: () => Promise<boolean>;
   /** Ajoute une tâche à la file des écritures (jamais deux envois de la même carte en même temps). */
   enqueue: <T>(task: () => Promise<T>) => Promise<T>;
-  /** Envoie le document de la carte active ; null si elle n'existe plus, « conflict » si elle a changé ailleurs. */
-  send: (id: string, doc: MapDoc) => Promise<MapEntry | null | "conflict">;
-  /** Détache la carte active (supprimée ou modifiée ailleurs) : son contenu reste dans l'éditeur. */
+  /**
+   * Envoie le document de la carte active ; null si elle n'existe plus, « conflict » si elle a changé
+   * ailleurs, « locked » si c'est une carte partagée qu'un membre modifie (verrou d'édition).
+   */
+  send: (id: string, doc: MapDoc) => Promise<SendResult>;
+  /** Détache la carte active (supprimée, modifiée ailleurs, ou verrouillée par un membre) : son contenu reste dans l'éditeur. */
   detach: (id: string) => Promise<void>;
   /** Prend acte d'un envoi réussi : document connu de la banque, nouvelle version de référence. */
   accepted: (id: string, doc: MapDoc, entry: MapEntry) => Promise<void>;
@@ -57,6 +61,12 @@ export type AutoSave = {
   hasUnsentChanges: () => boolean;
   dispose: () => void;
 };
+
+/** Issue d'un envoi de la carte active (voir AutoSave.send). */
+export type SendResult = MapEntry | null | "conflict" | "locked";
+
+/** Statut affiché quand la carte active est détachée faute de pouvoir l'écrire. */
+export const detachedStatus = (reason: "conflict" | "locked") => (reason === "locked" ? MAP_SHARED_LOCKED : MAP_CONFLICT);
 
 export function createAutoSave(
   repo: MapRepository,
@@ -135,7 +145,7 @@ export function createAutoSave(
     await base.persist();
   };
 
-  const send = async (id: string, doc: MapDoc): Promise<MapEntry | null | "conflict"> => {
+  const send = async (id: string, doc: MapDoc): Promise<SendResult> => {
     const expected = base.expected(id);
     // Banque distante : jamais d'envoi sans version de référence (il écraserait sans contrôle une
     // version plus récente). Version inconnue (carte détachée entre-temps, copie locale sans version) :
@@ -145,6 +155,7 @@ export function createAutoSave(
       return await repo.update(id, doc, expected);
     } catch (error) {
       if (error instanceof MapConflictError) return "conflict";
+      if (error instanceof RemoteBankError && error.reason === "locked") return "locked";
       throw error;
     }
   };
@@ -192,10 +203,10 @@ export function createAutoSave(
           sending = true;
           const sent = await send(activeMapId, doc);
           sending = false;
-          if (sent === "conflict") {
+          if (sent === "conflict" || sent === "locked") {
             // Rien n'est écrasé : la version de ce navigateur reste dans le brouillon, hors banque.
             await detach(activeMapId);
-            setStatus(MAP_CONFLICT);
+            setStatus(detachedStatus(sent));
             if (attempt === writes) keptLocally = true;
             return false;
           }

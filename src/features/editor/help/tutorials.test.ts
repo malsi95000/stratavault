@@ -90,3 +90,46 @@ describe("fidèles au comportement de l'éditeur", () => {
     expect(tutorialFor("frise").tip).toContain(`${TIMELINE_START}–${TIMELINE_END - 1}`);
   });
 });
+
+describe("tutoriels dans la carte collective", () => {
+  const collective = (topic: HelpTopic) => {
+    const t = tutorialFor(topic, { collective: true });
+    return [t.title, t.summary, ...t.steps, t.shortcut ?? "", t.tip ?? ""].join(" ");
+  };
+
+  it("gardent 2 à 4 étapes et les raccourcis des outils", () => {
+    for (const topic of HELP_TOPICS) {
+      const t = tutorialFor(topic, { collective: true });
+      expect(t.steps.length, topic).toBeGreaterThanOrEqual(2);
+      expect(t.steps.length, topic).toBeLessThanOrEqual(4);
+    }
+    for (const [key, tool] of Object.entries(TOOL_SHORTCUTS)) {
+      expect(tutorialFor(tool, { collective: true }).shortcut).toBe(key.toUpperCase());
+    }
+  });
+
+  it("ne promettent ni fiche supplémentaire, ni couleur, ni catégorie, ni export (absents de la carte collective)", () => {
+    for (const topic of ["select", "link", "gomme", "flux"] as const) {
+      const text = collective(topic);
+      expect(text, topic).not.toContain("« Nouvelle fiche »");
+      expect(text, topic).not.toContain("« Sur la carte »");
+      expect(text, topic).not.toContain("exportez");
+      expect(text, topic).not.toContain("fiches supplémentaires devaient");
+    }
+  });
+
+  it("disent qu'on ne modifie, ne relie et n'efface que ses propres éléments", () => {
+    expect(collective("select")).toContain("Élément d’un autre membre : sa fiche se lit seulement");
+    expect(collective("link")).toContain("un pays, ou l’un de vos propres éléments");
+    expect(collective("gomme")).toContain("Les éléments des autres membres et les pays ne s’effacent pas");
+    expect(collective("flux")).toContain("ne se modifie pas dans la carte collective");
+    for (const tool of ["ping", "point", "texte", "lasso", "link", "flux"] as const) {
+      expect(collective(tool), tool).toContain("signé de votre nom affiché et de votre identifiant public");
+    }
+  });
+
+  it("hors de la carte collective, les tutoriels restent ceux de l'éditeur", () => {
+    expect(tutorialFor("gomme")).toEqual(tutorialFor("gomme", { collective: false }));
+    expect(text("select")).toContain("« Nouvelle fiche »");
+  });
+});

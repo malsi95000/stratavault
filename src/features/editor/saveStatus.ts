@@ -38,6 +38,20 @@ export const MAP_GONE = "Carte supprimée de la banque : elle reste ici, enregis
 export const MAP_CONFLICT =
   "Carte modifiée sur un autre appareil ou dans un autre onglet : elle n’a pas été écrasée. Votre version reste ici, enregistrez-la sous un autre nom pour la garder";
 
+/**
+ * Carte partagée (mode compte) qu'un membre modifie en ce moment (verrou d'édition) : elle n'est pas
+ * écrasée. Comme pour un conflit, la version de ce navigateur est détachée de la banque et reste dans
+ * l'éditeur ; une carte qui a des membres se modifie dans l'éditeur coopératif (« Coopérer »).
+ */
+export const MAP_SHARED_LOCKED =
+  "Carte partagée qu’un membre modifie en ce moment : elle n’a pas été écrasée. Votre version reste ici, enregistrez-la sous un autre nom pour la garder ; pour modifier la carte avec ses membres, ouvrez-la avec « Coopérer » depuis votre espace";
+
+/**
+ * Carte active de l'éditeur habituel qui a des membres (mode compte) : elle s'ouvre dans l'éditeur
+ * coopératif (verrou d'édition), en lecture seule ici le temps d'y aller.
+ */
+export const MAP_SHARED_OPENING = "Carte partagée avec des membres : ouverture de l’éditeur coopératif…";
+
 /** Banque distante (mode compte). */
 export type RemoteOptions = {
   /** Statut affiché après un échec d'écriture dans la banque, et s'il faut réessayer automatiquement. */

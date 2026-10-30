@@ -10,7 +10,8 @@ import HomeTabs from "./HomeTabs";
 import { HOME_SECTIONS, NAV_LINKS, accessLink, sectionFromHash } from "./homeNav";
 import Reveal from "./Reveal";
 import { initialReveal, staggerDelay } from "./revealState";
-import { mayHaveSpace } from "./sessionHint";
+import CollectivePromo from "./CollectivePromo";
+import { mayHaveAccountSession, mayHaveSpace } from "./sessionHint";
 
 const source = (path: string) => readFileSync(join(ROOT, path), "utf8");
 const hrefs = (html: string) => [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
@@ -41,9 +42,21 @@ describe("menu fixe de l'accueil", () => {
     expect(mayHaveSpace([{ name: "autre", value: "1" }])).toBe(false);
   });
 
+  it("distingue une session de compte de l'accès démo", () => {
+    expect(mayHaveAccountSession([{ name: "sb-abc-auth-token", value: "base64-x" }])).toBe(true);
+    expect(mayHaveAccountSession([{ name: "sb-abc-auth-token.1", value: "base64-x" }])).toBe(true);
+    expect(mayHaveAccountSession([{ name: DEMO_COOKIE, value: "1" }])).toBe(false);
+    expect(mayHaveAccountSession([{ name: "sb-abc-auth-token-code-verifier", value: "x" }])).toBe(false);
+    expect(mayHaveAccountSession([{ name: "sb-abc-auth-token", value: "" }])).toBe(false);
+    expect(mayHaveAccountSession([])).toBe(false);
+  });
+
   it("n'appelle pas Supabase pour afficher l'accueil", () => {
     const page = source("src/app/page.tsx");
-    expect(page).toContain("accessLink(mayHaveSpace((await cookies()).getAll()))");
+    expect(page).toContain("const jar = (await cookies()).getAll();");
+    expect(page).toContain("accessLink(mayHaveSpace(jar))");
+    expect(page).toContain("const signedIn = mayHaveAccountSession(jar);");
+    expect(page).toContain("<CollectivePromo signedIn={signedIn} />");
     expect(page).not.toMatch(/checkCurrentUser|checkActiveUser|getPageSession|createClient/);
   });
 
@@ -163,5 +176,22 @@ describe("animations de l'accueil", () => {
       expect(css).toContain(`--animate-${name}: ${name} `);
       expect(css).toContain(`@keyframes ${name} {`);
     }
+  });
+});
+
+describe("encart de la carte collective", () => {
+  const render = (signedIn: boolean) => renderToStaticMarkup(createElement(CollectivePromo, { signedIn }));
+
+  it("invite à se connecter sans session de compte (visiteur ou mode démo)", () => {
+    const html = render(false);
+    expect(html).toContain("Connectez-vous");
+    expect(hrefs(html)).toEqual(["/carte-collective"]);
+  });
+
+  it("n'invite pas à se connecter une session de compte déjà ouverte", () => {
+    const html = render(true);
+    expect(html).not.toContain("Connectez-vous");
+    expect(html).toContain("Ouvrir la carte collective");
+    expect(hrefs(html)).toEqual(["/carte-collective"]);
   });
 });

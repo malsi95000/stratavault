@@ -8,7 +8,9 @@ export const WRONG_PASSWORD = "Mot de passe incorrect.";
 export const SESSION_ENDED = "Votre session a pris fin : reconnectez-vous, puis recommencez.";
 export const SESSION_CHANGED =
   "Un autre compte est maintenant ouvert dans ce navigateur : rechargez la page avant de supprimer un compte.";
-export const DELETE_FAILED = "Le compte n’a pas pu être supprimé : rien n’a été effacé. Réessayez plus tard.";
+/** Le compte, le profil et les cartes sont intacts ; seule la photo de profil a pu être retirée avant l'échec. */
+export const DELETE_FAILED =
+  "Le compte n’a pas pu être supprimé : votre profil et vos cartes sont intacts (seule votre photo de profil a pu être retirée). Réessayez plus tard.";
 /**
  * « Changer mon mot de passe » : la personne est connectée et voit son adresse, le message
  * anti-énumération du mot de passe oublié n'a pas lieu d'être. Au-delà du plafond de demandes de
@@ -19,7 +21,8 @@ export const passwordChangeRequested = (email: string) =>
 export const NO_EMAIL = "Ce compte n’a pas d’adresse e-mail : cette action se demande par e-mail.";
 
 /** Affiché sur l'accueil après la suppression (paramètre ?compte=supprime). */
-export const ACCOUNT_DELETED = "Votre compte et toutes ses cartes ont été supprimés.";
+export const ACCOUNT_DELETED =
+  "Votre compte, son profil, ses éléments de la carte collective et toutes ses cartes ont été supprimés.";
 
 /** Mode démo : effacement des données de ce navigateur. */
 export const CLEAR_DEMO_CONFIRM =

@@ -5,10 +5,10 @@ import { hasContent } from "@/features/map-doc/ops";
 import { blankDoc, parseMapDoc } from "@/features/map-doc/schema";
 import type { MapDoc } from "@/features/map-doc/types";
 import type { MapEntry } from "@/features/storage";
-import type { AutoSave } from "./autoSave";
+import { detachedStatus, type AutoSave } from "./autoSave";
 import { bankCreated, bankUpdated, cleanMapName } from "./persistenceApi";
 import type { Persistence } from "./persistenceApi";
-import { MAP_CONFLICT, UNTITLED_MAP } from "./saveStatus";
+import { UNTITLED_MAP } from "./saveStatus";
 
 type BankOperations = Pick<
   Persistence,
@@ -29,6 +29,7 @@ type ActiveUpdate =
   | { kind: "updated"; entry: MapEntry }
   | { kind: "recreated"; entry: MapEntry }
   | { kind: "conflict" }
+  | { kind: "locked" }
   | { kind: "stale" };
 
 export function createBankOperations(core: AutoSave): BankOperations {
@@ -71,9 +72,9 @@ export function createBankOperations(core: AutoSave): BankOperations {
         return { kind: "stale" };
       }
       const sent = await core.send(activeMapId, doc);
-      if (sent === "conflict") {
+      if (sent === "conflict" || sent === "locked") {
         await core.detach(activeMapId);
-        return { kind: "conflict" };
+        return sent === "locked" ? { kind: "locked" } : { kind: "conflict" };
       }
       // Carte supprimée ailleurs : l'utilisateur demande explicitement à l'enregistrer. Elle est
       // recréée sous un nouvel identifiant, choisi par la banque : jamais l'ancien, qu'une copie
@@ -94,8 +95,8 @@ export function createBankOperations(core: AutoSave): BankOperations {
       try {
         if (activeMapId) {
           const result = await updateActive(activeMapId, doc);
-          if (result.kind === "conflict") core.setStatus(MAP_CONFLICT);
-          if (result.kind === "conflict" || result.kind === "stale") return "failed";
+          if (result.kind === "conflict" || result.kind === "locked") core.setStatus(detachedStatus(result.kind));
+          if (result.kind === "conflict" || result.kind === "locked" || result.kind === "stale") return "failed";
           if (result.kind === "recreated") {
             await becomeActive(result.entry, doc);
             return "created";

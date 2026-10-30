@@ -27,7 +27,13 @@ const mocks = vi.hoisted(() => ({
   /** Issue de la connexion par mot de passe : compte ouvert, ou erreur de Supabase Auth. */
   password: { value: { ok: true, userId: "" } as { ok: true; userId: string } | { ok: false; error: unknown } },
   withPasswordSession: vi.fn(),
+  /** Suppression des avatars par l'API Storage (testée à part, src/lib/supabase/profiles.test.ts). */
+  removeAllAvatars: vi.fn(),
+  /** Ordre des appels faits avec le client de la session temporaire. */
+  order: [] as string[],
 }));
+
+vi.mock("@/lib/supabase/profiles", () => ({ removeAllAvatars: mocks.removeAllAvatars }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => (mocks.configured.value ? { auth: { getUser: mocks.getUser }, rpc: mocks.rpc } : null),
@@ -81,12 +87,16 @@ beforeEach(() => {
   mocks.jar.clear();
   for (const name of [...SESSION_COOKIES, "sv-demo", "autre"]) mocks.jar.set(name, "x");
   resetAuthRateLimits();
-  for (const fn of [mocks.getUser, mocks.rpc, mocks.freshRpc, mocks.withPasswordSession]) fn.mockReset();
+  for (const fn of [mocks.getUser, mocks.rpc, mocks.freshRpc, mocks.withPasswordSession, mocks.removeAllAvatars]) {
+    fn.mockReset();
+  }
+  mocks.order.length = 0;
+  mocks.removeAllAvatars.mockImplementation(async () => void mocks.order.push("avatars"));
   mocks.withPasswordSession.mockImplementation(fakePasswordSession);
   signedInAs(ALICE);
   passwordOk();
   mocks.rpc.mockResolvedValue({ data: true, error: null });
-  mocks.freshRpc.mockResolvedValue({ data: true, error: null });
+  mocks.freshRpc.mockImplementation(async () => (mocks.order.push("rpc"), { data: true, error: null }));
   consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -100,6 +110,7 @@ afterEach(() => {
 function expectNothingDeleted() {
   expect(mocks.rpc).not.toHaveBeenCalled();
   expect(mocks.freshRpc).not.toHaveBeenCalled();
+  expect(mocks.removeAllAvatars).not.toHaveBeenCalled();
   for (const name of [...SESSION_COOKIES, "sv-demo"]) expect(mocks.jar.has(name), name).toBe(true);
 }
 
@@ -112,8 +123,18 @@ describe("deleteMyAccount", () => {
     // (exigé par la base), jamais avec celui du cookie de session.
     expect(mocks.freshRpc).toHaveBeenCalledExactlyOnceWith("delete_my_account");
     expect(mocks.rpc).not.toHaveBeenCalled();
+    // L'avatar est d'abord supprimé de Storage, avec le même client, puis le compte.
+    expect(mocks.removeAllAvatars).toHaveBeenCalledExactlyOnceWith({ rpc: mocks.freshRpc });
+    expect(mocks.order).toEqual(["avatars", "rpc"]);
     for (const name of [...SESSION_COOKIES, "sv-demo"]) expect(mocks.jar.has(name), name).toBe(false);
     expect(mocks.jar.has("autre")).toBe(true);
+  });
+
+  it("échec de la suppression de l'avatar : le compte n'est pas supprimé", async () => {
+    mocks.removeAllAvatars.mockRejectedValue(new Error("storage"));
+    expect(await submit()).toMatchObject({ status: "error", message: DELETE_FAILED });
+    expect(mocks.freshRpc).not.toHaveBeenCalled();
+    for (const name of [...SESSION_COOKIES, "sv-demo"]) expect(mocks.jar.has(name), name).toBe(true);
   });
 
   it("exige SUPPRIMER en toutes lettres, sans rien demander à Supabase", async () => {
@@ -228,6 +249,11 @@ describe("deleteMyAccount", () => {
       error: { code: "28000", message: "account_reauthentication_required" },
     });
     expect(await submit()).toMatchObject({ status: "error", message: DELETE_FAILED });
+    // Fichier d'avatar resté dans le compartiment (envoyé depuis un autre onglet) : refusé par la base.
+    mocks.freshRpc.mockResolvedValue({ data: null, error: { code: "P0001", message: "account_avatars_remain" } });
+    expect(await submit()).toMatchObject({ status: "error", message: DELETE_FAILED });
+    expect(consoleError.mock.calls.flat().join(" ")).toContain("code avatars");
+    expect(mocks.jar.has(SESSION_COOKIES[0])).toBe(true);
     // Jeton refusé par la base (42501, ou PGRST3xx de PostgREST) : session terminée.
     mocks.freshRpc.mockResolvedValue({ data: null, error: { code: "42501", message: "account_session_ended" } });
     expect(await submit()).toMatchObject({ message: SESSION_ENDED });

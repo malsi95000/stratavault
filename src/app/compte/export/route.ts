@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { accountExportFileName, createAccountExportStream } from "@/features/account/exportData";
+import { readExtrasForExport } from "@/features/account/exportProfile";
 import { acquireExportSlot } from "@/features/account/exportSlots";
 import {
   ACCOUNT_PAGE,
@@ -15,7 +16,9 @@ import { createClient } from "@/lib/supabase/server";
 import { verifyAccount } from "@/lib/supabase/user";
 
 // « Télécharger mes données » (RGPD, articles 15 et 20) : GET /compte/export renvoie un fichier JSON
-// avec la fiche du compte et toutes ses cartes.
+// avec la fiche du compte, son profil (avatar compris), ses autres fichiers, autorisations et jeton
+// d'envoi d'avatar, ses contacts, ses partages de cartes, sa place dans la carte collective, ses
+// compteurs anti-abus et toutes ses cartes (contenu détaillé : src/features/account/exportData.ts).
 //
 // - Requête venue d'un autre site (en-tête Sec-Fetch-Site) : renvoyée vers /compte sans rien lire ni
 //   compter. Un site tiers ne peut pas lire le fichier (politique de même origine), mais il pourrait
@@ -75,18 +78,21 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   let maps;
+  let extras;
   try {
     maps = await listMapsForExport(supabase, account.id);
+    extras = await readExtrasForExport(supabase, account.id);
   } catch {
     slot.release();
     // Seul le type d'erreur est journalisé, jamais de donnée.
-    console.error("[account] Lecture des cartes impossible pour l’export.");
+    console.error("[account] Lecture des cartes, du profil, des avatars ou des compteurs impossible pour l’export.");
     return redirectTo(EXPORT_UNAVAILABLE_PATH);
   }
 
   const now = new Date();
   const body = createAccountExportStream({
     account,
+    extras,
     maps,
     now,
     readData: async (mapId) => {

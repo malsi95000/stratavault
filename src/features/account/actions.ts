@@ -17,6 +17,7 @@ import { checkAccountAttempt, checkAttempt, clientIp, trustedProxyHops } from "@
 import { AccountDataError, deleteOwnAccount } from "@/lib/supabase/account";
 import { DEMO_COOKIE, isSessionCookie } from "@/lib/supabase/cookies";
 import { withPasswordSession, type PasswordCheck } from "@/lib/supabase/passwordCheck";
+import { removeAllAvatars } from "@/lib/supabase/profiles";
 import { createClient } from "@/lib/supabase/server";
 import { verifyUser } from "@/lib/supabase/user";
 import {
@@ -44,8 +45,8 @@ type DeleteOutcome =
 /**
  * « Supprimer mon compte » : session vérifiée auprès de l'API Auth (getUser), compte attendu par la
  * page (champ `account`), mot « SUPPRIMER », puis mot de passe : il ouvre une session temporaire avec
- * laquelle la fonction de la base delete_my_account est appelée (cartes, identités et sessions
- * supprimées en cascade). Enfin, cookies de session effacés. Le navigateur efface ensuite sa copie
+ * laquelle l'avatar du profil est supprimé de Storage, puis la fonction de la base delete_my_account
+ * est appelée (profil, cartes, identités et sessions supprimés en cascade). Enfin, cookies de session effacés. Le navigateur efface ensuite sa copie
  * locale du compte (DeleteAccountDialog).
  */
 export async function deleteMyAccount(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -79,6 +80,15 @@ export async function deleteMyAccount(_previous: AuthFormState, formData: FormDa
     outcome = await withPasswordSession(user.email, parsed.data.password, async ({ client, userId }) => {
       if (userId !== user.id) return { status: "other-account" };
       try {
+        // Avatar d'abord, par l'API Storage (seule à effacer le fichier lui-même ; SQL ne le peut pas) :
+        // en cas d'échec, le compte n'est pas supprimé. L'avatar, lui, reste retiré même si la suite
+        // échoue (il peut être renvoyé) : la base refuse de supprimer un compte dont un fichier reste
+        // dans le compartiment (account_avatars_remain), si bien qu'aucun ne survit au compte.
+        await removeAllAvatars(client);
+      } catch {
+        return { status: "failed", code: "avatars" };
+      }
+      try {
         await deleteOwnAccount(client);
         return { status: "deleted" };
       } catch (error) {
@@ -103,7 +113,8 @@ export async function deleteMyAccount(_previous: AuthFormState, formData: FormDa
   // Mot de passe d'un autre compte que celui de la session : rien n'est supprimé.
   if (result.status === "other-account") return errorState(WRONG_PASSWORD, { password: WRONG_PASSWORD });
   if (result.status === "failed") {
-    // Seul le code est journalisé. La fonction s'exécute dans une transaction : rien n'a été supprimé.
+    // Seul le code est journalisé. La fonction de la base s'exécute dans une transaction : le compte,
+    // le profil et les cartes sont intacts. Seul l'avatar a pu être retiré (étape précédente).
     const { code } = result;
     console.error(`[account] Suppression refusée (code ${code ?? "inconnu"}).`);
     return errorState(code === "42501" || code?.startsWith("PGRST3") ? SESSION_ENDED : DELETE_FAILED);

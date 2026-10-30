@@ -98,9 +98,10 @@ export default function DeleteAccountDialog({ userId, email }: { userId: string;
           <AlertDialogHeader>
             <AlertDialogTitle className="brut text-[22px] text-danger">Supprimer mon compte</AlertDialogTitle>
             <AlertDialogDescription className="text-[15px] text-foreground">
-              Le compte <strong className="break-all">{email}</strong> et toutes ses cartes seront supprimés
-              définitivement, et ses sessions prendront fin sur tous vos appareils. Pour garder vos cartes, téléchargez
-              d’abord vos données.
+              Le compte <strong className="break-all">{email}</strong>, son profil, ses contacts, ses partages, ses
+              éléments de la carte collective et toutes ses cartes seront supprimés définitivement (les membres de vos
+              cartes partagées n’y auront plus accès), et ses sessions prendront fin sur tous vos appareils. Pour garder
+              vos cartes, téléchargez d’abord vos données.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className={formClass}>

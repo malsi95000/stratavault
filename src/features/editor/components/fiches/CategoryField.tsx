@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditorStore } from "@/features/editor/store";
+import { ficheReadOnly, useEditorStore } from "@/features/editor/store";
 import { cn } from "@/lib/utils";
 import { BTN, FIELD, LABEL } from "./styles";
 
@@ -14,11 +14,12 @@ export default function CategoryField({
 }) {
   const categories = useEditorStore((s) => s.doc.categories);
   const setCategoriesOpen = useEditorStore((s) => s.setCategoriesOpen);
+  const readOnly = useEditorStore(ficheReadOnly);
   return (
     <div className="mt-3.5">
       <label className={cn(LABEL, "mt-0")}>
         Catégorie
-        <select className={FIELD} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+        <select className={FIELD} disabled={readOnly} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
           <option value="">Aucune</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -27,9 +28,11 @@ export default function CategoryField({
           ))}
         </select>
       </label>
-      <button type="button" className={cn(BTN, "mt-1.5 px-2 py-1 text-[13px]")} onClick={() => setCategoriesOpen(true)}>
-        {categories.length === 0 ? "Créer une catégorie…" : "Gérer les catégories…"}
-      </button>
+      {!readOnly && (
+        <button type="button" className={cn(BTN, "mt-1.5 px-2 py-1 text-[13px]")} onClick={() => setCategoriesOpen(true)}>
+          {categories.length === 0 ? "Créer une catégorie…" : "Gérer les catégories…"}
+        </button>
+      )}
     </div>
   );
 }

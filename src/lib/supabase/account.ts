@@ -71,12 +71,14 @@ export async function readMapForExport(
 }
 
 /**
- * Supprime le compte du jeton de `db` (auth.uid()) et, en cascade, ses cartes et ses sessions.
- * `db` doit porter le jeton d'une session ouverte par mot de passe à l'instant (withPasswordSession) :
- * la base refuse sinon (codes 42501 ou 28000).
+ * Supprime le compte du jeton de `db` (auth.uid()) et, en cascade, son profil, ses cartes et ses
+ * sessions. `db` doit porter le jeton d'une session ouverte par mot de passe à l'instant
+ * (withPasswordSession) : la base refuse sinon (codes 42501 ou 28000). Elle refuse aussi tant qu'il
+ * reste un fichier du compte dans le compartiment « avatars » (code rendu : « avatars » ;
+ * 20261017120300_delete_my_account_avatars.sql).
  */
 export async function deleteOwnAccount(db: SupabaseClient<Database>): Promise<boolean> {
   const { data, error } = await db.rpc("delete_my_account");
-  if (error) throw new AccountDataError(error.code);
+  if (error) throw new AccountDataError(error.message?.includes("account_avatars_remain") ? "avatars" : error.code);
   return data === true;
 }

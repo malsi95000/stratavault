@@ -2,10 +2,11 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import FlashToast from "@/components/FlashToast";
 import Logo from "@/components/Logo";
+import CollectivePromo from "@/components/home/CollectivePromo";
 import HomeHeader from "@/components/home/HomeHeader";
 import HomeTabs from "@/components/home/HomeTabs";
 import { accessLink } from "@/components/home/homeNav";
-import { mayHaveSpace } from "@/components/home/sessionHint";
+import { mayHaveAccountSession, mayHaveSpace } from "@/components/home/sessionHint";
 import SiteFooter from "@/components/SiteFooter";
 import { homeNotice } from "@/features/account/notices";
 
@@ -14,7 +15,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const notice = homeNotice(await searchParams);
   // Menu fixe : « Mon espace » pour une session ou une démo ouverte, sinon « Connexion ». Deviné à
   // partir des cookies (affichage seulement), sans attendre Supabase.
-  const access = accessLink(mayHaveSpace((await cookies()).getAll()));
+  const jar = (await cookies()).getAll();
+  const access = accessLink(mayHaveSpace(jar));
+  // Encart de la carte collective : « Connectez-vous » seulement sans session de compte probable.
+  const signedIn = mayHaveAccountSession(jar);
 
   return (
     <>
@@ -60,6 +64,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </svg>
           </a>
         </section>
+
+        <CollectivePromo signedIn={signedIn} />
 
         <HomeTabs />
 

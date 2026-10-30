@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import { dialogs } from "@/components/dialogs";
 import { cn } from "@/lib/utils";
 import { MAX_NOTE_LENGTH } from "@/features/map-doc/types";
+import { ficheLocked, ficheReadOnly, useEditorStore } from "@/features/editor/store";
 import { BTN, FIELD, LABEL } from "./styles";
 
 /** Champ titre d'une fiche (« Titre », « Nature de la relation », « Titre affiché »). */
@@ -20,12 +21,15 @@ export function TitleField({
   maxLength?: number;
   onChange: (value: string) => void;
 }) {
+  // Carte partagée en lecture seule, ou élément d'un autre membre : le texte reste lisible et copiable.
+  const readOnly = useEditorStore(ficheReadOnly);
   return (
     <label className={LABEL}>
       {label}
       <input
         type="text"
         className={FIELD}
+        readOnly={readOnly}
         maxLength={maxLength}
         placeholder={placeholder}
         value={value}
@@ -36,10 +40,11 @@ export function TitleField({
 }
 
 export function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const readOnly = useEditorStore(ficheReadOnly);
   return (
     <label className={LABEL}>
       Date
-      <input type="date" className={FIELD} value={value} onChange={(e) => onChange(e.target.value)} />
+      <input type="date" className={FIELD} readOnly={readOnly} value={value} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
 }
@@ -53,11 +58,13 @@ export function NotesField({
   placeholder: string;
   onChange: (value: string) => void;
 }) {
+  const readOnly = useEditorStore(ficheReadOnly);
   return (
     <label className={LABEL}>
       Notes
       <textarea
         className={`${FIELD} min-h-[200px] resize-y in-data-[expanded=true]:min-h-[45vh]`}
+        readOnly={readOnly}
         placeholder={placeholder}
         maxLength={MAX_NOTE_LENGTH}
         value={value}
@@ -80,6 +87,10 @@ export function DeleteButton({
   confirmText: string | (() => string);
   onConfirm: () => void;
 }) {
+  // Carte partagée en lecture seule, ou élément d'un autre membre : rien à supprimer. Un compte qui
+  // peut seulement supprimer ses éléments (carte collective) garde ce bouton.
+  const locked = useEditorStore(ficheLocked);
+  if (locked) return null;
   return (
     <button
       type="button"

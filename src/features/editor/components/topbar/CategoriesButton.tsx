@@ -8,6 +8,9 @@ import { useEditorStore } from "@/features/editor/store";
 export default function CategoriesButton() {
   const hydrated = useEditorStore((s) => s.hydrated);
   const setCategoriesOpen = useEditorStore((s) => s.setCategoriesOpen);
+  // Carte partagée en lecture seule : les catégories ne se modifient pas.
+  const readOnly = useEditorStore((s) => s.readOnly);
+  if (readOnly) return null;
   // Avant le chargement, une catégorie créée serait remplacée par la carte enregistrée.
   return (
     <Button variant="panel" size="panel" title="Catégories" disabled={!hydrated} onClick={() => setCategoriesOpen(true)}>

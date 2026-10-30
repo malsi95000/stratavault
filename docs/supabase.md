@@ -59,10 +59,169 @@ Les cartes des comptes sont stockées dans la table `public.maps`, créée par l
   (fiches supplémentaires, catégories, styles) sont refusées (« carte invalide »). Les autres cartes
   passeraient : la bêta 2.1 les envoie sans les clés v2 vides (`portableDoc`), exactement au format v1.
 
+- **Bêta 2.1, profils et avatars** (DIV-03) : `supabase/migrations/20261017120000_rate_limits.sql`,
+  puis `20261017120100_profiles.sql`, puis `20261017120200_avatars.sql`, puis
+  `20261017120300_delete_my_account_avatars.sql`, **dans cet ordre**, après les deux fichiers
+  précédents de la bêta 2.1. Ils n’ajoutent que de nouvelles tables, fonctions, politiques et déclencheurs (dont
+  celles du compartiment Storage `avatars`, qu’ils créent) ; le dernier remplace
+  `delete_my_account()` (même signature, mêmes droits) pour qu’elle refuse de supprimer un compte
+  dont un fichier reste dans le compartiment `avatars`. La version en ligne et l’étape 1 de la
+  bêta 2.1 continuent de fonctionner sans changement (leurs comptes n’ont pas d’avatar). À appliquer **avant** de
+  déployer la version qui contient `/profil` : sans eux, « Mon profil » affiche « Connexion
+  indisponible » et le téléchargement des données échoue (il lit le profil). `20261017120200_avatars.sql`
+  écrit dans le schéma `storage` (ligne de `storage.buckets`, politiques et deux déclencheurs de
+  `storage.objects`) : appliquez-le depuis l’éditeur SQL du tableau de bord (rôle `postgres`). S’il
+  est refusé (droit manquant sur `storage.objects`), rien n’est appliqué : ne déployez pas, et
+  demandez au support Supabase le droit `TRIGGER` sur cette table plutôt que de retirer les
+  déclencheurs (sans eux, les adresses d’envoi signées contournent les limites des avatars). Vérifiez ensuite dans **Storage** que le
+  compartiment `avatars` est **privé**, limité à `image/webp` et à 100 Ko.
+
+- **Bêta 2.1, contacts** (DIV-02) : `supabase/migrations/20261018120000_contacts.sql`, **après** les
+  quatre fichiers des profils et des avatars (le dernier étant
+  `20261017120300_delete_my_account_avatars.sql`). Il ajoute trois tables (`contact_requests`, `contacts`,
+  `contact_blocks`) et leurs fonctions, ajoute trois actions à la liste fermée de
+  `public.rate_limits` (les lignes existantes restent valides) et remplace la fonction interne
+  `public.profiles_visible_to` (mêmes paramètres, mêmes droits). La version en ligne, l’étape 1 et les
+  profils continuent de fonctionner. À appliquer **avant** de déployer la version qui contient
+  `/contacts` : sans lui, « Contacts » affiche « Connexion indisponible » et le profil d’un membre
+  n’affiche pas ses boutons de contact (le téléchargement des données, lui, fonctionne : listes vides).
+
+- **Bêta 2.1, partage et coopération** (CMY-02) : `supabase/migrations/20261019120000_map_sharing.sql`,
+  **après** celui des contacts. Il ajoute cinq tables (`map_members`, `map_invitations`,
+  `map_links`, `map_link_uses`, `map_locks`) et leurs fonctions, trois déclencheurs (sur `map_members`,
+  `contact_blocks` et `profiles`), six actions à la liste fermée de `public.rate_limits` (les
+  lignes existantes restent valides), et **remplace `public.update_map_data`** (mêmes paramètres, mêmes
+  droits, même contrôle de version) pour laisser écrire les éditeurs qui tiennent le verrou
+  d’édition. Pour un compte sans carte partagée, rien ne change : le propriétaire écrit comme avant
+  tant que personne ne tient le verrou, et la version en ligne (qui ne connaît pas les verrous)
+  continue de fonctionner ; quand une carte a des membres, chaque écriture du propriétaire qui change
+  son contenu prend (ou renouvelle) le verrou pour deux minutes, pour que les membres voient qu’il la
+  modifie (un contenu renvoyé tel quel, à l’ouverture d’une carte, ne prend ni ne heurte le verrou).
+  Il n’écrit pas dans le schéma `storage` : éditeur SQL ou `db push`. À
+  appliquer **avant** de déployer la version qui contient `/carte/partagee` : sans lui, « Partagées
+  avec moi » affiche une erreur, « Partager » et l’éditeur coopératif « Connexion indisponible » (le
+  téléchargement des données, lui, fonctionne : listes vides).
+
+- **Bêta 2.1, carte collective et modération** (CMY-01, COM-01 à 03) :
+  `supabase/migrations/20261020120000_collective_map.sql`, **après** celui du partage. Il ajoute neuf
+  tables (`collective_items`, `collective_state`, `collective_reports`, `collective_decisions`,
+  `collective_notices`, `moderators`, `collective_item_ids`, `collective_report_copies`,
+  `collective_suspensions`), leurs
+  déclencheurs et leurs fonctions, et six actions à la
+  liste fermée de `public.rate_limits` (les lignes existantes restent valides). Il ne remplace
+  aucune fonction et ne touche ni aux cartes, ni aux profils, ni à `delete_my_account` : la version
+  en ligne, l’étape 1, les profils, les contacts et le partage continuent de fonctionner. Il n’écrit
+  pas dans le schéma `storage` : éditeur SQL ou `db push`. À appliquer **avant** de déployer la
+  version qui contient `/carte-collective` : sans lui, la carte collective affiche « Carte collective
+  indisponible » (le téléchargement des données, lui, fonctionne : listes vides).
+
+  **Désigner un modérateur** (éditeur SQL, en tant que `postgres` ; aucune fonction de l’API n’écrit
+  cette table). Un modérateur autre que vous agit sous votre autorité et voit des données
+  personnelles : faites-lui d’abord signer la charte des modérateurs (instructions écrites et
+  engagement de confidentialité, `docs/legal.md`, point 22) et conservez-la. Retrouvez ensuite
+  l’identifiant du compte dans **Authentication → Users**, puis
+
+  ```sql
+  insert into public.moderators (user_id) values ('<identifiant du compte>');
+  -- retrait :
+  delete from public.moderators where user_id = '<identifiant du compte>';
+  ```
+
+  Le lien « Modération » apparaît alors dans la barre de la carte collective (rechargez la page) et
+  ouvre `/carte-collective/moderation` (file des éléments signalés ou masqués, décisions, journal).
+
+  **Suspensions** : un modérateur qui masque ou supprime un élément peut cocher « Suspendre aussi les
+  contributions de l’auteur » (30 jours : ni ajout ni modification ; supprimer ses éléments et
+  signaler restent possibles, l’éditeur passe en « suppression seulement »). Rétablir l’élément revoit
+  la suspension prononcée sur lui : elle est recalculée d’après les autres décisions encore en vigueur
+  (suspension prononcée avec un autre élément toujours masqué ou supprimé), ou levée s’il n’en reste
+  aucune. À la main
+  (éditeur SQL) : `select user_id, until from public.collective_suspensions;` pour les voir,
+  `delete from public.collective_suspensions where user_id = '<identifiant du compte>';` pour en
+  lever une, ou un `insert` (`user_id`, `until`) pour en prononcer une sans élément.
+
+  **Motif d’une décision** : la page de modération fait choisir la règle en cause parmi les « Motifs
+  de retrait » de `/conditions` (`src/features/collective/decisionGrounds.ts`), puis les faits
+  retenus ; le motif enregistré (`p_reason`, 3 à 500 caractères pour la base) commence par cette
+  règle. `my_collective_notices()` renvoie aussi, pour un avis d’auteur, le nombre de signalements
+  traités (`reports` ; 0 : initiative de la modération), affiché dans l’avis avec la mention d’une
+  décision humaine sans traitement automatisé et les voies de recours (DSA art. 17.3).
+
+- **Mesures de modération hors carte collective** (profils, cartes partagées, comptes ; signalements
+  reçus par e-mail, `/conditions#signalement`). Aucune interface : éditeur SQL, en tant que
+  `postgres`, et tableau de bord. Envoyez l’exposé des motifs par e-mail à l’adresse du compte
+  (**Authentication → Users**) au plus tard quand la mesure prend effet (`docs/legal.md`, point 24) :
+  mesure, durée, règle en cause (et texte de loi pour un contenu illicite), faits retenus, origine
+  (signalement ou initiative de l’éditeur), décision humaine, voies de recours. Cet e-mail, gardé
+  un an dans la messagerie de contact, est la trace de la mesure (traitement « Modération des
+  profils, des cartes partagées et des comptes » de `/confidentialite`, registre 6 bis) ; envoyez
+  aussi la décision à la personne qui a signalé, même si son message ne comportait pas son nom.
+  Même procédure pour suspendre ou supprimer le compte d’un mineur de moins de 15 ans à la demande
+  d’un titulaire de l’autorité parentale (`docs/legal.md`, point 25). Les blocs
+  ci-dessous sont à adapter (`<…>`) et à exécuter un à un.
+
+  ```sql
+  -- Profil : retrouver le compte d'un identifiant public.
+  select user_id, handle, display_name, avatar_id from public.profiles where handle = '<identifiant>';
+  -- Retirer une présentation ou un nom affiché (le nom ne peut pas être vide : nom neutre).
+  update public.profiles set bio = '' where user_id = '<compte>';
+  update public.profiles set display_name = 'Membre' where user_id = '<compte>';
+  -- Retirer l'avatar : d'abord la référence, puis le fichier (étape suivante).
+  update public.profiles set avatar_id = null where user_id = '<compte>';
+  ```
+
+  Supprimez ensuite le fichier de l’avatar (nom : l’`avatar_id` relevé avant) dans **Storage →
+  avatars** ; SQL ne peut pas l’effacer. Pour **supprimer un profil**, retirez d’abord tous les
+  fichiers du compte dans **Storage → avatars** (requête des fichiers orphelins de cette section 3), puis
+  `delete from public.profiles where user_id = '<compte>';` : ses contacts, demandes, membres de
+  cartes, invitations et partages de ses cartes partent avec lui (cascade), et ses éléments de la
+  carte collective ne sont plus montrés aux autres.
+
+  ```sql
+  -- Carte partagée : retrouver ses membres, invitations et liens.
+  select id, user_id, name from public.maps where id = '<carte>';
+  select user_id, role from public.map_members where map_id = '<carte>';
+  -- Révoquer ses liens d'invitation, retirer un membre, ou arrêter tout le partage.
+  delete from public.map_links where map_id = '<carte>';
+  delete from public.map_members where map_id = '<carte>' and user_id = '<compte du membre>';
+  delete from public.map_invitations where map_id = '<carte>';
+  delete from public.map_members where map_id = '<carte>';
+  ```
+
+  **Retirer un contenu d’une carte partagée** : demandez-le d’abord à son propriétaire. À défaut,
+  lisez `data` (`select data from public.maps where id = '<carte>';`), enregistrez-le dans un
+  fichier `.json` hors du dépôt, ouvrez-le avec « Importer » dans l’éditeur en **mode démo**, retirez
+  l’élément en cause, exportez la carte, puis remplacez le contenu dans l’éditeur SQL
+  (`update public.maps set data = '<contenu exporté>'::jsonb where id = '<carte>';`) : la base
+  change alors la révision de la carte (déclencheur), ce qui fait détecter le changement aux
+  éditeurs ouverts.
+  Supprimez ensuite la copie locale. Si le contenu illicite constitue toute la carte, arrêtez le
+  partage (bloc ci-dessus) plutôt que de supprimer la carte de son propriétaire.
+
+  **Suspendre un compte** (bannissement de Supabase Auth, réversible) :
+
+  ```sql
+  update auth.users set banned_until = now() + interval '<durée>' where id = '<compte>';
+  delete from auth.sessions where user_id = '<compte>';
+  -- levée :
+  update auth.users set banned_until = null where id = '<compte>';
+  ```
+
+  Le compte ne peut plus se connecter ni rafraîchir sa session ; vérifiez avec un compte de test
+  qu’une page déjà ouverte est bien déconnectée (un jeton d’accès déjà délivré peut rester valable
+  jusqu’à son expiration, une heure par défaut). **Supprimer un compte** : procédure de la
+  section 3 (avatars d’abord, puis l’utilisateur).
+
 Vérifiez ensuite dans **Database → Tables** que `maps` existe avec **RLS enabled**, dans
 **Authentication → Policies** les quatre politiques `maps_select_own`, `maps_insert_own`,
 `maps_update_own` et `maps_delete_own`, et dans **Database → Functions** `create_map`,
-`update_map_data`, `set_map_cover` et `delete_my_account`.
+`update_map_data`, `set_map_cover` et `delete_my_account`. Pour la bêta 2.1 : `profiles`,
+`rate_limits`, `avatar_read_grants`, `avatar_upload_tickets`, `contact_requests`, `contacts`,
+`contact_blocks`, `map_members`, `map_invitations`, `map_links`, `map_link_uses`, `map_locks`,
+`collective_items`, `collective_state`, `collective_reports`, `collective_decisions`,
+`collective_notices`, `moderators`, `collective_item_ids`, `collective_report_copies` et `collective_suspensions` avec **RLS enabled** ; seule `profiles` a des politiques (`profiles_select_own`,
+`profiles_delete_own`) ; les autres n’en ont aucune (aucun accès par l’API, tout passe par les
+fonctions).
 - **Ou avec la CLI Supabase** : `npx supabase link --project-ref <projet>` puis `npx supabase db push`
   (le dossier `supabase/migrations/` est déjà au format attendu).
 
@@ -111,8 +270,10 @@ Ce que les migrations mettent en place :
   s’exécute avec les droits du rôle qui applique la migration (`postgres` dans l’éditeur SQL), qui
   doit pouvoir lire `auth.sessions` et supprimer des lignes de `auth.users` : si l’appel échoue avec
   « permission denied for table sessions » ou « … table users », c’est ce droit qui manque. Une ligne qui référencerait l’utilisateur sans
-  `on delete cascade` (fichiers de Supabase Storage par exemple, inutilisé ici) ferait échouer la
-  suppression ;
+  `on delete cascade` (fichiers de Supabase Storage par exemple) ferait échouer la
+  suppression. Depuis la bêta 2.1 (`20261017120300_delete_my_account_avatars.sql`), elle refuse
+  aussi (`account_avatars_remain`, rien n’est supprimé) tant qu’un fichier du compte reste dans le
+  compartiment `avatars` (voir **avatars** ci-dessous) ;
 - **format de carte v2** (bêta 2.1, `20261014120000_maps_doc_v2.sql`) : `maps_doc_is_valid` est
   remplacée (même signature) pour accepter, en plus des neuf clés d’une carte v1, les clés facultatives
   `fiches` (fiches supplémentaires par élément : 1 à 50 par élément, 5 000 en tout), `categories` (50 au
@@ -130,6 +291,317 @@ Ce que les migrations mettent en place :
   compte est borné par 50 Mo + 500 × 18 Ko, soit environ **59 Mo**. La liste de la banque renvoie le
   logo de chaque carte (au plus 500 × 16 Ko, environ 8 Mo) : d’où des bornes petites. Le logo figure
   dans « Télécharger mes données » (champ `cover`, lu carte par carte avec le contenu) ;
+- **profils** (bêta 2.1, `20261017120100_profiles.sql`) : table `public.profiles`, une ligne par
+  compte qui a créé son profil sur `/profil` (jamais de création silencieuse) : `handle` (identifiant
+  public, 3 à 30 caractères `a-z 0-9 _`, enregistré en minuscules ; forme repliée — 0 → o, 1 et
+  l → i, 3 → e, 4 → a, 5 → s, 7 → t, 8 → b, « _ » retiré, puis rn → m et vv → w — **unique** (index
+  `profiles_handle_fold_key` : « a1ice », « al_ice » ou « aiice » ne peuvent pas imiter « alice ») ;
+  identifiants réservés refusés sous cette forme : la liste exacte, et tout identifiant qui
+  **contient** admin, moderat, stratavault, officiel, official ou support), `display_name` (1 à
+  50 caractères ; aucun mot qui, ramené à des lettres simples par NFKD, sans accents ni signes,
+  et après conversion des lettres cyrilliques, grecques ou en petites capitales d’apparence latine
+  — « Аdmin » avec un А cyrillique —, contient admin, moderat, stratavault, officiel ou official ; et
+  « stratavault » est aussi cherché dans le nom entier sans ses espaces, « Strata Vault »), `bio` (280 caractères,
+  6 lignes), `avatar_id`, `visibility` (`members` : tout compte connecté ; `contacts` : ses contacts
+  et les membres à qui il a envoyé une demande en attente ; jamais un compte qu’il a bloqué), dates
+  tenues par un déclencheur. Caractères de
+  contrôle, invisibles, de remplissage (hangûl, braille vide, sélecteurs de variante, « étiquettes »,
+  toute la propriété Unicode Default_Ignorable_Code_Point…) ou d’inversion du sens de lecture refusés ; nom sans espace Unicode au bord ni marque combinante
+  au début (usurpation d’un nom, nom vide). **RLS** : chaque compte lit et supprime **sa** ligne
+  seulement ; **aucune écriture directe** (ni INSERT ni UPDATE) : création et modification par
+  `create_my_profile` et `update_my_profile` (RPC, `SECURITY DEFINER`, entrées bornées), qui
+  comptent chaque essai d’identifiant **avant** de savoir s’il est pris et répondent
+  `handle-taken` sans erreur (sinon l’erreur d’unicité, qui annule le compteur, dirait sans limite
+  si un identifiant existe, même masqué). Les profils des autres ne se lisent **que** par
+  `profile_by_handle(p_handle)` (RPC, `SECURITY DEFINER`, identifiant **exact**, casse ignorée), qui
+  applique la règle de visibilité (`profiles_visible_to`, seule source de la règle, remplacée par la
+  migration des contacts), ne renvoie jamais `user_id` et répond pareil pour un identifiant inconnu
+  ou un profil masqué. Aucune liste des membres, aucune recherche par adresse e-mail. Limites de la
+  base par compte (`public.rate_limits`, `20261017120000_rate_limits.sql`, table sans aucun droit pour
+  l’API ; chaque compte relit les siens par `my_rate_limits()`, pour l’export) : 30 essais
+  d’identifiant par jour, 5 créations de profil et 5 changements d’identifiant réussis par jour,
+  50 changements de nom affiché par jour (`profile_change` ; un enregistrement qui ne change pas le
+  nom ne compte pas ; au-delà, `update_my_profile` répond `rate-limited` sans erreur),
+  300 consultations de profil par heure. Le profil est supprimé avec le compte (`on delete cascade`) ;
+- **avatars** (bêta 2.1, `20261017120200_avatars.sql`) : compartiment Storage **privé** `avatars`
+  (WebP seulement, 100 Ko), fichiers `<avatar_id>` (uuid aléatoire) : le nom ne contient **pas**
+  l’identifiant du compte ; la propriété se lit dans `owner_id`, rempli par l’API Storage avec le
+  `sub` du jeton. L’image envoyée sur `/profil` est vérifiée par sa signature (PNG, JPEG ou WebP ; SVG
+  refusé), bornée à 2 Mo et 4 096 pixels de côté, puis **réenregistrée par le serveur** (sharp : WebP
+  256 × 256, sans métadonnées). Un compte peut toutefois envoyer d’autres octets directement à l’API
+  Storage avec son jeton (la base ne voit pas le contenu) : la route d’affichage revérifie donc
+  chaque fichier (WebP 256 × 256, une image) et le **réencode** avant de le servir. Politiques de
+  `storage.objects` (compartiment `avatars` seulement, rôle `authenticated`) : lecture de ses
+  fichiers (`owner_id`) et, pendant **une minute** après `open_avatar_read(p_avatar)`, de l’avatar
+  actuel d’un profil visible (autorisation dans `public.avatar_read_grants`, table sans aucun droit
+  pour l’API ; 600 demandes par heure) : l’API Storage applique la même politique à la liste du
+  compartiment, qui ne montre donc jamais les avatars des autres ; envoi d’un fichier à soi, nom
+  exact, profil existant, deux fichiers au plus, **jeton d’envoi** en cours pour ce nom ; suppression
+  de ses fichiers sauf l’avatar actuel ; ni modification ni remplacement. Ces politiques ne voient
+  qu’une écriture « sonde » : l’API Storage les évalue avec le rôle du compte, dans un `SAVEPOINT`
+  aussitôt annulé, puis écrit la ligne avec son propre rôle, sans RLS — parfois bien plus tard
+  (adresse d’envoi signée `createSignedUploadUrl`, contrôlée à sa création puis valable deux heures
+  sans politique, y compris pour réécrire le fichier avec `x-upsert`). Les règles d’envoi sont donc
+  appliquées **aussi à l’écriture réelle** par un déclencheur de `storage.objects`
+  (`public.avatars_guard_write`, déclencheurs `avatars_guard_insert` et `avatars_guard_update`,
+  compartiment `avatars` seulement, quel que soit le rôle) : aucun remplacement, déplacement ni
+  changement de propriétaire ; un nouveau fichier exige un profil, moins de deux fichiers et un jeton
+  en cours pour ce nom, que le déclencheur **consomme** dans la même transaction (erreur
+  `avatars_write_refused`). **Limite de 30 envois par jour** : `open_avatar_upload()` compte la
+  demande (compteur `avatar_upload`), tire le nom du fichier (uuid aléatoire) et l’enregistre pour
+  cinq minutes dans `public.avatar_upload_tickets` (un jeton par compte, table sans aucun droit pour
+  l’API) ; un jeton donne au plus un fichier, même directement à l’API Storage avec le jeton de
+  session du compte, même avec plusieurs adresses signées obtenues avant tout envoi.
+  `cancel_avatar_upload()` annule le jeton (envoi abandonné, avatar retiré, profil ou compte
+  supprimé) ; `set_profile_avatar(p_avatar)` désigne ou retire l’avatar (le fichier doit exister et
+  appartenir au compte ; 20 changements par jour) ; `my_avatar_files()` donne au serveur les noms des fichiers
+  du compte, `my_avatar_read_grants()` ses autorisations d’affichage et `my_avatar_upload_ticket()`
+  son jeton d’envoi (export). Les tests PGlite (`src/test/pglite.ts`, `storageUpload` et
+  `storageRemove`) reproduisent ce chemin de l’API Storage. L’image s’affiche par la route du site
+  `/avatars/<avatar_id>` (comptes connectés seulement, même 404 pour toute absence, image réencodée,
+  `nosniff`) : le navigateur ne contacte jamais Supabase et la CSP n’a pas changé. L’application ne
+  crée aucune adresse signée ; mais l’API Storage en accorde une (`createSignedUrl`, durée choisie
+  par le client) à tout compte qui peut lire le fichier : un membre qui vient d’ouvrir un avatar
+  peut donc, avec son jeton, en obtenir une adresse valable sans session. Ce n’est pas plus qu’une
+  copie de l’image ; `/confidentialite` le signale, et changer ou retirer l’avatar supprime le
+  fichier, ce qui coupe ces adresses. **Suppression** :
+  Supabase interdit d’effacer un fichier de Storage par SQL ; l’application supprime donc l’avatar
+  par l’API Storage avant de supprimer le profil ou le compte : avatar retiré du profil, jeton
+  d’envoi annulé, fichiers supprimés, puis fichiers du compte relus par la base, car l’API Storage
+  ignore **sans erreur** un fichier que la politique refuse d’effacer (s’il en reste un, ou si une
+  étape échoue, le profil ou le compte n’est pas supprimé ; l’avatar, lui, a pu être déjà retiré).
+  La base le vérifie aussi pour le compte (`20261017120300_delete_my_account_avatars.sql`) :
+  `delete_my_account()` efface le jeton d’envoi et le profil, supprime le compte, puis **annule
+  tout** (`account_avatars_remain`) s’il reste un fichier du compte (`owner_id`) dans le
+  compartiment — appel direct de la fonction sans passer par l’application, ou avatar envoyé depuis
+  un autre onglet pendant la suppression. Une fois le jeton et le profil effacés, le déclencheur
+  refuse toute écriture pour ce compte, même par une adresse signée obtenue avant ; un envoi
+  concurrent se range derrière la suppression du jeton (verrou sur sa ligne) et, s’il aboutit le
+  premier, la vérification le voit.
+  « Retirer l’avatar » efface tous les fichiers du compte ; si Storage échoue, `/profil` le signale
+  et propose « Effacer les fichiers de l’avatar ». **Compte supprimé par l’éditeur** (Authentication
+  → Users : compte inactif, demande par e-mail, sanction) : la cascade ne supprime que les lignes de
+  la base, jamais les fichiers. Avant de supprimer l’utilisateur, listez ses fichiers
+  (`select name from storage.objects where bucket_id = 'avatars' and owner_id = '<uuid>';`) et
+  supprimez-les depuis **Storage → avatars** ; sur un projet ancien où la contrainte
+  `storage.objects_owner_fkey` existe encore, la suppression de l’utilisateur échoue tant qu’ils
+  restent. Ensuite, et de temps en temps, vérifiez qu’il ne reste aucun fichier orphelin (échec
+  entre deux étapes, compte supprimé à la main ; lisibles par leur seul titulaire, s’il existe
+  encore) :
+  `select name, owner_id from storage.objects o where bucket_id = 'avatars' and not exists (select 1
+  from public.profiles p where p.avatar_id::text = o.name)` dans l’éditeur SQL, puis suppression
+  depuis **Storage** dans le tableau de bord (`docs/legal.md`, point 10) ;
+- **contacts** (bêta 2.1, `20261018120000_contacts.sql`) : `public.contact_requests` (demande en
+  attente, une par couple et par sens), `public.contacts` (une ligne par couple, `user_low <
+  user_high`) et `public.contact_blocks` (qui bloque qui, et l’identifiant du bloqué au moment du
+  blocage s’il était visible pour le bloqueur, `blocked_handle`, sinon null, jamais mis à jour). Les demandes et les contacts sont
+  rattachés aux **profils** (supprimés avec le profil de l’un des deux) ; les blocages aux **comptes**
+  (ils survivent à la suppression du profil : recréer un profil sous un autre identifiant n’échappe
+  pas à un blocage). **RLS activé sans politique et aucun droit** sur les trois tables : chaque ligne
+  contient l’identifiant de compte de l’autre membre, qui ne sort jamais de la base. Tout passe par
+  des fonctions `SECURITY DEFINER` (search_path vide, `auth.uid()` vérifié, entrées bornées en texte
+  avant conversion) : `send_contact_request(p_handle)` (profil requis ; ne trouve que les profils
+  **visibles** pour le demandeur, avec la même règle que `profile_by_handle` : un identifiant
+  inconnu, un profil masqué, un membre qui vous a bloqué ou que vous avez bloqué répondent tous
+  `not-found` ; essai compté
+  **avant** la recherche), `accept_contact_request`, `refuse_contact_request`,
+  `cancel_contact_request`, `remove_contact`, `block_member(p_kind, p_value)` (par identifiant
+  visible, par demande ou par contact : le contact et les demandes entre les deux sont supprimés ;
+  même blocage, fonction interne `contacts_block`, depuis un élément de la carte collective par
+  `block_collective_author(p_id)`, qui retrouve l’auteur dans la base même si son profil n’est
+  visible que de ses contacts),
+  `unblock_member`, et les listes `my_contacts()`, `my_contact_requests()` et
+  `my_blocked_members()` (identifiant, nom affiché et avatar de l’autre membre, références opaques :
+  jamais d’identifiant de compte ; une demande n’en montre rien si le profil n’est plus visible, et un
+  blocage ne montre que l’identifiant du moment du blocage, s’il était visible : aucune liste ni
+  aucune réponse ne permet de suivre un membre qui se masque, change d’identifiant ou recrée son
+  profil ; un couple bloqué n’apparaît jamais dans les contacts ni
+  les demandes). Envoi et acceptation prennent d’abord un verrou consultatif par compte, pour les
+  deux comptes et dans un ordre fixe (`contacts_lock_accounts` : des membres différents qui écrivent
+  en même temps au même compte ne dépassent pas ses 200 demandes reçues ni ses 1 000 contacts) ;
+  envoi, acceptation et blocage prennent ensuite un verrou consultatif par couple
+  (`contacts_lock_pair`) avant leurs vérifications : un blocage simultané l’emporte toujours ; le
+  profil du compte est verrouillé en `for no key update` (compatible avec le `for key share` des
+  clés étrangères : deux membres qui s’ajoutent en même temps ne s’interbloquent pas). Règle de visibilité (`profiles_visible_to`) : soi-même ; sinon,
+  s’il n’existe aucun blocage entre les deux comptes (dans un sens ou dans l’autre), un profil
+  `members`, un contact, ou l’expéditeur d’une demande en attente (le destinataire voit qui la lui
+  envoie). Le blocage rend donc les deux profils (et les avatars) invisibles l’un à l’autre, sous
+  tout identifiant : rien ne dit au bloqué qu’il est bloqué, et rien ne permet au bloqueur de
+  reconnaître le compte bloqué sous une nouvelle identité. Limites
+  de la base par compte : 30 demandes par jour (essais), 50 demandes envoyées en attente, 200 reçues
+  en attente, 1 000 contacts, 50 blocages par jour, 1 000 comptes bloqués, 300 autres opérations par
+  jour (mêmes valeurs que `src/features/contacts/limits.ts`). Tout disparaît avec le compte
+  (`on delete cascade`) ; les relations figurent dans « Télécharger mes données » ;
+- **partage et coopération** (bêta 2.1, `20261019120000_map_sharing.sql`) : `public.map_members`
+  (carte, compte, rôle `editor` ou `reader` ; le propriétaire est celui de la carte),
+  `public.map_invitations` (invitation d’un contact, 30 jours), `public.map_links` (liens
+  d’invitation : **empreinte SHA-256** du jeton seulement, rôle, 1 à 50 usages, 1 à 720 heures ;
+  révoqués par suppression), `public.map_link_uses` (comptes qui ont rejoint la carte par un lien :
+  **un lien ne sert qu’une fois à chaque compte**, pour qu’un membre retiré, ou passé lecteur puis
+  parti, ne revienne pas par le lien déjà utilisé avec le rôle du lien ; supprimé avec le lien et
+  avec le compte, mais pas avec le profil) et `public.map_locks` (verrou d’édition : titulaire, bail
+  de deux minutes). Les cinq tables : RLS activé **sans politique**, aucun droit pour l’API (chaque
+  ligne contient l’identifiant de compte d’un membre).
+  **Écart assumé au cahier des charges (§16, « RLS des cartes étendue : lecture par les membres »)** :
+  les politiques de `public.maps` ne changent pas. Une politique « membres » leur donnerait la ligne
+  entière, dont `user_id` (l’identifiant de compte du propriétaire), car le droit `SELECT` de l’API
+  porte sur toute la table et la version en ligne filtre sur cette colonne ; la lecture et l’écriture
+  des membres passent donc par des fonctions `SECURITY DEFINER` qui vérifient le rôle du compte sur la
+  carte, avec le même effet (lecture par les membres, écriture par les éditeurs, le reste réservé au
+  propriétaire) sans exposer cet identifiant. À valider par le porteur du cahier des charges. Les
+  membres lisent une carte par `open_shared_map(p_map)` (contenu, rôle, version, propriétaire par son
+  identifiant public ; 600 lectures par heure) et suivent son état par `shared_map_state(p_map)`
+  (version, verrou ; 1 200 lectures par heure, un onglet ouvert en faisant 240) ; ils écrivent par
+  `update_map_data`, remplacée : propriétaire, ou éditeur **qui tient le verrou** ; personne pendant
+  le bail d’un autre (`maps_locked`), sauf le propriétaire qui renvoie le contenu tel quel ; lecteur
+  jamais ; contrôle de version inchangé ; une écriture du propriétaire qui change le contenu d’une
+  carte qui a des membres prend ou renouvelle le verrou (deux minutes ; jamais pour une carte sans
+  membre ni pour un contenu inchangé). L’écriture d’un éditeur compte dans l’espace du propriétaire (quota
+  inchangé, `maps_quota_exceeded`). Renommer, supprimer, changer le
+  logo et partager restent réservés au propriétaire (politiques et `set_map_cover` inchangées).
+  Fonctions (RPC, `SECURITY DEFINER`, `search_path` vide, `auth.uid()` vérifié, entrées bornées en
+  texte avant conversion, `EXECUTE` réservé à `authenticated`) : `invite_contact_to_map` (un contact
+  du propriétaire, désigné par la référence de `my_contacts`), `answer_map_invitation`,
+  `cancel_map_invitation`, `create_map_link` (statut `created` et le jeton — deux uuid v4 du
+  générateur aléatoire fort de PostgreSQL, 244 bits — renvoyé une seule fois, ou `not-found`,
+  `links-full`), `revoke_map_link`, `preview_map_link`,
+  `accept_map_link`, `set_map_member_role`, `remove_map_member`, `leave_shared_map`,
+  `acquire_map_lock` (prise ou renouvellement atomique : un bail en cours d’un autre compte n’est
+  jamais remplacé), `release_map_lock`, et les listes `maps_shared_with_me()`, `my_map_invitations()`,
+  `my_map_shares(p_map)`, `my_map_locks()` et `my_map_link_uses()`, qui ne renvoient jamais
+  d’identifiant de compte ni de jeton. Un lien inconnu, échu, épuisé, révoqué, d’un compte bloqué ou
+  déjà utilisé par un compte qui n’est plus membre donne la même réponse ; chaque essai est compté
+  **avant** de chercher le jeton. Une fois le compteur pris, les fonctions répondent par un statut
+  et jamais par une erreur (une erreur annulerait l’incrément avec le reste de l’instruction). Profil exigé pour partager, être invité ou
+  rejoindre. Déclencheurs : un membre retiré ou passé lecteur perd son verrou ; un blocage (dans un
+  sens ou dans l’autre) retire chacun des cartes de l’autre et supprime les invitations entre eux ;
+  un contact retiré supprime les invitations en attente entre les deux (`map_sharing_on_contact_delete` ;
+  l’invitation verrouille la ligne du contact, un retrait simultané attend puis la supprime, et une
+  invitation sans contact n’est ni montrée ni acceptée) ;
+  supprimer son profil retire le compte des cartes des autres (cascade) et arrête les partages de ses
+  propres cartes. Limites de la base par compte : 100 partages par jour, 60 essais de lien par jour,
+  300 autres opérations par jour, 600 appels de verrou, 600 lectures complètes et 1 200 lectures
+  de l’état par heure ; 50
+  membres et invitations par carte, 10 liens actifs par carte, 200 cartes partagées et 100 invitations
+  reçues par compte (mêmes valeurs que `src/features/sharing/limits.ts`). Les opérations qui changent
+  les membres d’une carte prennent un verrou consultatif de la carte, puis du compte qui entre (même
+  ordre partout). Entrer dans une carte (`answer_map_invitation`, `accept_map_link`) prend d’abord le
+  verrou du couple propriétaire-compte (`contacts_lock_pair`, le même que le blocage), et revérifie
+  le blocage après les verrous : un blocage simultané écarte toujours le membre. Les écritures de
+  partage gardent le profil du propriétaire (`for key share`, `not-found` s’il n’existe plus) : une
+  suppression simultanée du profil attend, puis supprime aussi ce qui vient d’être écrit ;
+- **carte collective et modération** (bêta 2.1, `20261020120000_collective_map.sql`) :
+  `public.collective_items` (éléments : identifiant choisi par l'application, auteur, sorte `ping`,
+  `point`, `text`, `zone`, `link` ou `flux`, contenu `jsonb` validé par
+  `collective_item_data_ok` — mêmes règles que `src/features/collective/itemData.ts` —, état
+  `visible` ou `hidden`, dates ; taille et sommets tenus par un déclencheur), `public.collective_state`
+  (une ligne : version, pour le rafraîchissement périodique, et totaux), `public.collective_reports`
+  (motif d'une liste fermée, précisions de 500 caractères, renvoi à la copie du contenu signalé tant
+  que le signalement est en attente — la file la montre si l'auteur a modifié l'élément depuis — ; un
+  seul signalement en attente par membre et par élément, et un signalement traité peut être refait si
+  l'élément a été modifié depuis la décision ; rattachés à l'**identifiant** de l'élément
+  (`collective_item_ids`), pas à l'élément : un retrait par l'auteur ne les efface pas, l'élément
+  reste dans la file à l'état `withdrawn` avec le dernier contenu signalé, où le modérateur peut le
+  supprimer — signalements retenus, identifiant bloqué, suspension possible, auteur informé — ou
+  classer les signalements ; recréé sous le même identifiant, il est de nouveau visé par eux ; partis
+  avec le compte qui signale, ou avec celui de l'auteur — déclencheur sur `collective_item_ids`),
+  `public.collective_report_copies` (copies des contenus signalés : une par élément et par contenu,
+  comparées exactement en `jsonb` sous le verrou de la carte, effacées dès qu'aucun signalement en
+  attente n'y renvoie ; 8 Mio pour toute la carte, total `report_bytes` tenu dans `collective_state`
+  par un déclencheur ; au-delà, le signalement est enregistré sans copie),
+  `public.collective_decisions` (journal : décision, motif — pour un contenu illicite, avec le texte
+  de loi en cause, exigé par l'application —, modérateur, auteur, titre de l'élément, suspension
+  prononcée, `author_notified` — l'auteur a-t-il reçu un avis — ; un an ; l'action `withdraw`, sans modérateur, trace le retrait par son auteur
+  d'un élément masqué ou signalé, sans avis : les membres qui l'avaient signalé sont informés de la
+  décision du modérateur qui suivra ; retirer de nouveau un identifiant recréé, sans décision d'un
+  modérateur entre-temps, n'ajoute pas de ligne (le nombre de signalements de la dernière est mis à
+  jour) ; un lien signalé ou
+  masqué supprimé par un modérateur avec l'élément auquel il est rattaché a sa propre décision
+  `delete`, avec avis aux membres qui l'avaient signalé),
+  `public.collective_notices` (avis à l'auteur et aux membres qui ont signalé ; 100 par compte),
+  `public.moderators` (alimentée à la main, voir plus haut), `public.collective_item_ids` (tout
+  identifiant déjà utilisé, avec son auteur — null après la suppression de son compte — et
+  l'indication « modéré » : un identifiant n'est jamais repris par un autre compte, ni par son auteur
+  après un masquage, une suppression par la modération — liens rattachés compris — ou le retrait d'un
+  élément masqué ; l'auteur reprend librement celui d'un élément qu'il a supprimé sans décision qu'il
+  connaisse, pour l'annulation dans l'éditeur, même s'il était signalé : la réponse ne doit pas lui
+  révéler un signalement) et `public.collective_suspensions` (contributions suspendues jusqu'à une date ; une ligne
+  par compte, supprimée avec lui). Les neuf tables : RLS activé **sans politique**, aucun droit pour
+  l'API. Fonctions (`SECURITY DEFINER`, `search_path` vide,
+  `auth.uid()` vérifié, entrées bornées en texte avant conversion, `EXECUTE` réservé à
+  `authenticated`) : `collective_map_state()` (version, rôle, profil, avis non lus, fin de la
+  suspension en cours), `collective_map()` (éléments visibles avec le **nom affiché** et
+  l'**identifiant public** de leur auteur — le nom affiché n'est pas unique et peut être copié par un
+  autre membre, l'identifiant public l'est : il est montré quelle que soit la visibilité du profil,
+  qui reste appliquée par `profile_by_handle` —, et « c'est le mien », jamais d'identifiant de
+  compte ; sans les éléments des comptes avec qui un blocage existe, ni ceux d'un auteur **sans
+  profil**, sauf pour lui-même : jamais d'élément non signé ; ils reviennent, signés, avec un nouveau
+  profil — le déclencheur `collective_on_profile_change` sur `public.profiles`, `SECURITY DEFINER`,
+  change la version de la carte quand un auteur crée, supprime ou renomme son profil),
+  `create_collective_item`, `update_collective_item` et `delete_collective_item` (chacun ses
+  éléments ; profil exigé pour ajouter ou modifier, et aucune suspension en cours : `suspended` ;
+  un lien ne relie qu'un pays ou un élément visible de son propre auteur ; supprimer un élément
+  supprime les liens de son auteur qui y sont rattachés, avec une trace au journal pour chacun qui
+  était masqué ou signalé ; à l'ajout, `id-taken` pour tout identifiant déjà porté ou utilisé par un
+  autre compte, quel que soit l'état de l'élément : la réponse ne révèle ni un masquage ni un
+  blocage ; chaque réponse donnée sous le verrou de la carte porte la version de la carte avant et
+  après l'écriture, `revision_from` et `revision_to`, pour que la session ne relise pas toute la
+  carte après ses propres écritures : les lectures complètes comptent dans la limite de 240 par
+  heure), `report_collective_item(p_id, p_reason, p_details, p_good_faith)` (élément inconnu,
+  masqué, d'un auteur sans profil ou d'un compte bloqué : même réponse, essai compté avant la
+  recherche ; motif `illegal` refusé sans explication de 20 caractères au moins ni déclaration de
+  bonne foi, comme par le formulaire), `block_collective_author(p_id)`
+  (bloque l'auteur d'un élément visible, même si son profil n'est visible que de ses contacts ;
+  même blocage et même limite que `block_member`, 50 par jour comptés avant la recherche ; même
+  réponse `not-found` qu'un élément inconnu ; l'identifiant de compte de l'auteur ne sort pas de la
+  base), `collective_moderation_queue(p_page)`
+  (par pages de 100, avec le nombre total d'éléments : contenus signalés comme illicites d'abord,
+  puis du plus ancien signalement en attente au plus récent, puis les éléments masqués ; aucun
+  signalement en attente n'est repoussé hors de la file par des signalements plus récents ; sans
+  les éléments du modérateur lui-même, comme `collective_moderation_log()` : un signalement
+  n'est pas révélé à son auteur),
+  `moderate_collective_item(p_id, p_action, p_reason, p_suspend)` (`hide`, `restore`, `delete`,
+  `dismiss`, motif de 3 à 500 caractères ; `p_suspend` avec `hide` ou `delete` seulement : 30 jours,
+  ou la fin d'une suspension plus longue déjà en cours ; jamais sur ses propres éléments : « own-item »
+  pour tout identifiant qu'il a utilisé, élément retiré compris, qu'il soit signalé ou non) et
+  `collective_moderation_log()` (modérateurs seulement :
+  `collective_forbidden` sinon ; il montre aux modérateurs le nom affiché du modérateur de chaque
+  décision), `my_collective_notices()` (avec, pour un avis d’auteur, le nombre de signalements
+  traités et la suspension prononcée), `mark_collective_notices_read()`,
+  `my_hidden_collective_items()` (éléments masqués du compte, listés dans « Avis de modération »
+  pour qu'il puisse toujours les supprimer, même après l'effacement de leur avis ; 240 lectures par
+  heure comptées avec la carte), et pour
+  « Télécharger mes données » `my_collective_items()`, `my_collective_reports()`,
+  `my_moderation_decisions()`, `my_collective_decisions()` (décisions qui visent les éléments du
+  compte : celles dont il a reçu l'avis, même effacé depuis, et celles sans signalement — retrait
+  d'un élément masqué, lien masqué supprimé avec son élément —, `author_notified or reports = 0`),
+  `my_collective_account()` (date de désignation comme modérateur, suspension en cours ou échue
+  non encore effacée) et `my_collective_item_ids()` (identifiants utilisés et indication
+  « modéré »). Les décisions qui révéleraient un signalement (classement, retrait d’un élément
+  signalé, lien signalé supprimé avec son élément) ne sont exposées par aucune fonction (RGPD
+  art. 15.4) ; sur demande, l'éditeur les communique après examen au cas par cas
+  (`docs/legal.md`, point 22). Les signalements qui visent les éléments du compte ne sont exposés par
+  aucune fonction non plus, et se communiquent de la même façon (même point). Conservation : la fonction interne `collective_purge()` (aucun droit d'exécution)
+  efface les décisions et les signalements traités de plus d'un an et les suspensions échues ;
+  elle est appelée par `moderate_collective_item` et par `collective_map_state` (rafraîchissement
+  de la carte par tout membre qui l'a ouverte), et ne prend le verrou de la carte que s'il y a
+  quelque chose à effacer. Il n'y a pas de tâche planifiée : si la carte n'est plus utilisée du
+  tout, appelez `select public.collective_purge();` dans l'éditeur SQL (ou planifiez-le avec
+  `pg_cron`). Les fonctions comptées répondent par un statut une fois le compteur
+  pris. Limites par compte (mêmes valeurs que `src/features/collective/limits.ts`) : 50 ajouts,
+  2 000 modifications ou suppressions, 20 signalements et 500 décisions par jour ; 240 lectures de
+  la carte (ou de la file, du journal) et 1 200 lectures de l'état par heure. Bornes de stockage :
+  48 Kio par élément ; par auteur 200 éléments, 512 Kio et 20 000 sommets, dont 128 Kio et 5 000
+  sommets ajoutés par période de 24 heures (compte large : contenu des éléments ajoutés ou modifiés
+  depuis ; `daily-full`) ; pour toute la carte 5 000 éléments, 6 Mio et 200 000 sommets
+  (`author-full`, `map-full`). Saturer la carte demande ainsi des dizaines de comptes avec profil
+  pendant au moins une journée ; il n'existe pas d'action de masse : les modérateurs suppriment les
+  éléments un à un (500 décisions par jour) et suspendent leurs auteurs. Toute écriture prend d'abord le
+  verrou de la ligne `collective_state` (même ordre partout). Un compte supprimé emporte ses
+  éléments, signalements et avis ; le journal garde ses décisions sans son identifiant. Rare : la
+  suppression d'un compte (cascade) pendant qu'un modérateur décide sur l'un de ses éléments peut
+  provoquer un interblocage que PostgreSQL détecte et résout en annulant l'une des deux opérations
+  (à refaire) ;
 - espace borné par compte : 500 cartes et 50 Mo de contenu au total (`data_bytes`, tenu par un
   déclencheur ; une modification qui n’agrandit pas une carte reste permise). Les écritures d’un même
   compte sont sérialisées par un verrou, pour que des écritures simultanées ne dépassent pas la limite.
@@ -138,8 +610,12 @@ Ce que les migrations mettent en place :
 
 Les politiques, les droits et les fonctions sont testés sur un vrai PostgreSQL (PGlite) par
 `src/features/maps/migration.test.ts`, `writeFunctions.test.ts` et `writeFunctions.cost.test.ts`
-(temps de traitement compris), `docV2.sql.test.ts` et `cover.sql.test.ts` (bêta 2.1), et `src/features/account/deleteMyAccount.sql.test.ts` pour la
-suppression du compte.
+(temps de traitement compris), `docV2.sql.test.ts` et `cover.sql.test.ts` (bêta 2.1), `src/features/profiles/profiles.sql.test.ts` et
+`avatars.sql.test.ts` (profils, avatars, compteurs), `src/features/contacts/contacts.sql.test.ts`
+(contacts, blocages, visibilité), `src/features/sharing/sharing.sql.test.ts` (partage, liens, verrou,
+écriture par les éditeurs), `src/features/collective/collective.sql.test.ts` (carte collective,
+signalements, modération, limites), et `src/features/account/deleteMyAccount.sql.test.ts`
+pour la suppression du compte.
 
 ## 4. Cartes : ce qui se passe dans l’application
 
@@ -206,6 +682,47 @@ suppression du compte.
   (`src/features/map-doc/types.ts`) ; l’éditeur applique les mêmes bornes. Le rendu des zones et des
   flux est lui aussi borné (`src/features/editor/shapeBudget.ts`, comme les arcs des liens) : un
   fichier hostile ne peut pas geler l’onglet.
+- **Cartes partagées** (bêta 2.1, `src/features/sharing/`) : « Partager » (page `/espace/partage/<id>`,
+  propriétaire seulement) gère les membres, les invitations de contacts et les liens ; le lien
+  d’invitation a la forme `/invitation#<jeton>` : le jeton est dans le **fragment**, que le navigateur
+  n’envoie jamais au serveur (ni journaux de l’hébergeur, ni en-tête Referer) ; la page le lit, le
+  retire de l’adresse et ne l’envoie qu’aux Server Actions d’aperçu et d’acceptation. « Coopérer »
+  ouvre l’**éditeur coopératif** (`/carte/partagee/<id>`, propriétaire et membres) ; pour une carte
+  du compte qui a des membres, « Continuer » y mène aussi (la carte est marquée « partagée » dans la
+  banque), pour que le propriétaire respecte le verrou comme ses membres. L’éditeur coopératif n’utilise
+  **jamais** la copie locale du compte : la session de l’éditeur habituel est d’abord suspendue
+  (modifications en attente envoyées ; si une page du compte la rouvre entre-temps, elle reste
+  ouverte et la suspension recommence), et rien de la carte partagée n’est écrit dans le navigateur.
+  Verrou d’édition v1 : l’éditeur qui tient le verrou modifie la carte (envoi une seconde après la
+  dernière modification, par `update_map_data` avec la version attendue) et renouvelle son bail
+  toutes les 40 secondes tant qu’il est actif ; après cinq minutes sans activité, il rend la main.
+  Les autres voient la carte en **lecture seule** (le store de l’éditeur ignore alors toute
+  modification) avec « X modifie cette carte », et la carte est relue toutes les 15 secondes si sa
+  version a changé, seulement tant que l’onglet est visible (relue dès qu’il le redevient ; un
+  rafraîchissement refusé, limite des lectures ou réseau, est annoncé par un avis qui disparaît au
+  premier qui réussit) ; un bail échu peut être repris (« Modifier la carte »). Si le bail de l’éditeur a
+  expiré sans que personne ne le reprenne (réseau coupé, appareil en veille), l’enregistrement refusé
+  (`maps_locked`) le reprend (`acquire_map_lock`) puis est refait avec la même version attendue :
+  rien n’est perdu si la carte n’a pas changé, sinon c’est un conflit ; un compte repassé lecteur
+  l’apprend par un message propre. Le verrou est tenu par un
+  **compte**, pas par un onglet : si le compte le tient déjà ailleurs (autre onglet, autre appareil,
+  éditeur de son espace), la carte s’ouvre en lecture seule (« vous modifiez déjà cette carte
+  ailleurs ») et seul « Modifier la carte » reprend la main ; un enregistrement refusé parce que la
+  carte a changé entre-temps l’annonce comme tel (et non comme « un autre membre a pris la main »).
+  À la sortie, le verrou est libéré (Server Action ; à la fermeture de l’onglet, `navigator.sendBeacon`
+  vers `/carte/partagee/<id>/verrou`, même origine exigée) ; sinon le bail expire en deux minutes.
+  Une page gardée dans le cache du navigateur passe en lecture seule à sa sortie et se recharge si
+  elle revient (bouton Précédent). Une carte en cours qui a des membres, ouverte directement sur
+  `/carte`, passe en lecture seule et s’ouvre dans l’éditeur coopératif (comme « Continuer » depuis
+  l’espace). Le propriétaire qui modifie malgré tout une carte partagée dans l’éditeur habituel
+  (lecture des membres impossible au chargement, ou carte partagée pendant qu’elle est ouverte) prend le verrou à chaque enregistrement
+  qui change son contenu (les membres voient « <son nom> modifie cette carte » pendant deux minutes
+  après sa dernière modification) ; s’il y écrit pendant qu’un éditeur tient le verrou, la carte est
+  **détachée** de la banque, comme lors d’un conflit : rien n’est écrasé ni renvoyé, sa version reste
+  dans l’éditeur (« Carte partagée qu’un membre modifie en ce moment… ouvrez-la avec « Coopérer » »).
+  Limite connue du verrou v1 : un éditeur qui appellerait directement `acquire_map_lock` en boucle
+  (600 appels par heure au plus) garderait la main sans être actif ; le propriétaire peut alors le
+  passer lecteur ou le retirer, ce qui libère aussitôt le verrou.
 
 ## 5. Réglages d’authentification
 

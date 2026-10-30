@@ -3,6 +3,7 @@ import SessionProblem from "@/components/auth/SessionProblem";
 import { getPageSession } from "@/features/auth/getPageSession";
 import Editor from "@/features/editor/components/Editor";
 import StorageScope from "@/features/editor/components/StorageScope";
+import { readOwnSharedMapIds } from "@/features/sharing/ownSharedMaps";
 
 export const metadata: Metadata = { title: "Carte" };
 
@@ -13,6 +14,9 @@ export default async function CartePage() {
     return <SessionProblem kind={session.kind} retry="/carte" />;
   }
   const account = session.kind === "account" ? session.account : null;
+  // Cartes du compte qui ont des membres : la carte active, si elle en est une, s'ouvre dans
+  // l'éditeur coopératif (verrou d'édition), comme depuis « Continuer » dans l'espace.
+  const sharedMapIds = account ? await readOwnSharedMapIds() : [];
 
   return (
     <StorageScope
@@ -25,7 +29,7 @@ export default async function CartePage() {
         </div>
       }
     >
-      <Editor account={account} />
+      <Editor account={account} sharedMapIds={sharedMapIds} />
     </StorageScope>
   );
 }

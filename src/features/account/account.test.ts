@@ -82,7 +82,8 @@ describe("fichier « Télécharger mes données »", () => {
     const text = `${exportHead(account, now)}${entries.join(",")}]}`;
     expect(text).not.toMatch(/\n/);
     const data = JSON.parse(text);
-    expect(data).toMatchObject({ format: ACCOUNT_EXPORT_FORMAT, version: 1, exportedAt: "2026-10-09T21:30:00.000Z" });
+    expect(data).toMatchObject({ format: ACCOUNT_EXPORT_FORMAT, version: 2, exportedAt: "2026-10-09T21:30:00.000Z" });
+    expect(data.profile).toBeNull();
     expect(data.account).toEqual(account);
     // Logo ou aperçu compris (droits d'accès et à la portabilité) : null quand la carte n'en a pas.
     expect(data.maps).toEqual([

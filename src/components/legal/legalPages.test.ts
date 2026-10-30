@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -6,12 +8,18 @@ import ConfidentialitePage from "@/app/confidentialite/page";
 import CookiesPage from "@/app/cookies/page";
 import MentionsLegalesPage from "@/app/mentions-legales/page";
 import SiteFooter from "@/components/SiteFooter";
-import { PROCESSINGS } from "@/features/legal/processing";
+import { BREACH_GROUNDS, GROUND_LABELS } from "@/features/collective/decisionGrounds";
+import { REPORT_ILLEGAL_HINT, REPORT_REASON_LABELS } from "@/features/collective/messages";
+import { COLLECTIVE_WARNING } from "@/features/collective/warning";
+import { ACCOUNT_EXPORT_NOTE } from "@/features/account/exportData";
+import { MODERATION_TITLE, PROCESSINGS } from "@/features/legal/processing";
 import { STORAGE_INVENTORY } from "@/features/legal/storageInventory";
 import {
   CNIL,
   CONTACT_EMAIL,
+  CONTACT_LANGUAGES,
   DATA_PROVIDER,
+  DSA,
   HOST,
   HOST_FUNCTION_LOCATION,
   LEGAL_PAGES,
@@ -20,7 +28,7 @@ import {
   PUBLISHER,
 } from "@/lib/legal";
 import { APP_VERSION } from "@/lib/version";
-import { routeExists, sourceFiles } from "@/test/sourceFiles";
+import { ROOT, routeExists, sourceFiles } from "@/test/sourceFiles";
 
 const render = (component: ComponentType) => renderToStaticMarkup(createElement(component));
 
@@ -200,7 +208,33 @@ describe("pages légales", () => {
   it("cite l'article de la LCEN en vigueur (1-1 depuis la loi SREN), et non plus l'ancien article 6", () => {
     const html = render(MentionsLegalesPage);
     expect(html).toContain("article 1-1");
-    expect(html).not.toMatch(/article 6(?![0-9])/);
+    // L'article 6 ne vise plus que les services intermédiaires : il n'apparaît que pour l'hébergement des contenus des membres.
+    const editor = html.slice(html.indexOf('id="editeur"'), html.indexOf('id="signalement"'));
+    expect(editor).not.toMatch(/article 6(?![0-9])/);
+    const hosting = html.slice(html.indexOf('id="signalement"'), html.indexOf('id="propriete"'));
+    expect(hosting).toMatch(/article 6(?![0-9])/);
+    expect(hosting).toContain(escaped(DSA.name));
+  });
+
+  it("les mentions légales donnent le point de contact et la façon de signaler un contenu illicite", () => {
+    const html = render(MentionsLegalesPage);
+    const hosting = html.slice(html.indexOf('id="signalement"'), html.indexOf('id="propriete"'));
+    for (const value of [CONTACT_EMAIL, CONTACT_LANGUAGES, DSA.coordinator, LCEN.abusiveNoticePenalty]) {
+      expect(hosting).toContain(escaped(value));
+    }
+    // Point de contact des autorités : une langue officielle de l'État d'établissement et une langue
+    // largement comprise dans l'Union (DSA, art. 11, paragraphe 3).
+    expect(CONTACT_LANGUAGES).toContain("français");
+    expect(CONTACT_LANGUAGES).toContain("anglais");
+    // Éléments d'une notification (DSA, art. 16, paragraphe 2).
+    for (const element of ["raisons", "où il se trouve", "nom et adresse e-mail", "de bonne foi"]) expect(hosting).toContain(element);
+    expect(hrefs(hosting)).toContain("/conditions#signalement");
+    expect(render(ConditionsPage)).toContain('id="signalement"');
+    // Signalement dans l'application : un compte n'a pas de nom (art. 16.2.c) ; les textes ne disent pas le contraire.
+    expect(hosting).toContain("mais pas à son nom");
+    expect(hosting).not.toContain("vaut notification");
+    expect(render(ConditionsPage)).not.toContain("votre compte vous identifie");
+    expect(REPORT_ILLEGAL_HINT).toContain("pas votre nom");
   });
 
   it("énonce la condition de l'article 1-1, II sans affirmer qu'elle est remplie", () => {
@@ -210,9 +244,59 @@ describe("pages légales", () => {
     expect(html).not.toMatch(/qui a communiqué|a (?:déjà )?(?:communiqué|transmis)|ont été (?:communiqués|transmis)/);
   });
 
+  it("les CGU donnent comme motifs de retrait chaque motif de signalement et chaque règle des décisions de modération", () => {
+    const terms = render(ConditionsPage).toLowerCase();
+    for (const [reason, label] of Object.entries(REPORT_REASON_LABELS)) {
+      if (reason !== "other") expect(terms, reason).toContain(escaped(label.toLowerCase()));
+    }
+    // Liste des « Motifs de retrait » : celle que le modérateur choisit comme règle en cause.
+    const grounds = terms.slice(terms.indexOf("motifs de retrait."), terms.indexOf("mesures possibles."));
+    for (const ground of BREACH_GROUNDS) expect(grounds, ground).toContain(escaped(GROUND_LABELS[ground].toLowerCase()));
+    // Les règles de l'avertissement d'entrée sont celles des CGU.
+    expect(COLLECTIVE_WARNING.paragraphs.join(" ")).toContain("information manifestement fausse");
+  });
+
   it("la page cookies liste tout l'inventaire", () => {
     const html = render(CookiesPage);
     for (const item of STORAGE_INVENTORY) expect(html).toContain(escaped(item.name));
+  });
+
+  it("la page cookies ne dit pas que les cartes partagées du compte restent hors du navigateur", () => {
+    // La carte en cours du compte, même partagée, est copiée dans stratavault-u-<id> (Editor.tsx
+    // la recharge avant de basculer vers l'éditeur coopératif).
+    const text = render(CookiesPage).replace(/\s+/g, " ");
+    expect(text).not.toContain("La carte collective et les cartes partagées ne sont pas enregistrées");
+    expect(text).toContain("les cartes d’autres membres ouvertes dans l’éditeur coopératif, ne sont pas enregistrées dans le navigateur");
+    expect(text).toContain("la carte en cours de votre compte, partagée ou non, l’est");
+    expect(STORAGE_INVENTORY.some((item) => item.name === "stratavault-u-<identifiant du compte>")).toBe(true);
+  });
+
+  it("le traitement du partage reprend la règle de la page cookies sur le navigateur", () => {
+    const partage = PROCESSINGS.find((p) => p.id === "partage");
+    expect(partage?.location).toContain("Seule la carte d’un autre membre, ouverte dans l’éditeur coopératif, n’est pas enregistrée");
+    expect(partage?.location).toContain("la carte en cours de votre compte, partagée ou non, l’est");
+    expect(partage?.retention).toContain("cas limite");
+    const registre = readFileSync(join(ROOT, "docs", "registre-traitements.md"), "utf8");
+    expect(registre).toContain("la carte en cours de son propre compte, partagée ou non, l’est");
+    expect(registre).toContain("passe désormais lui aussi par l’éditeur coopératif");
+  });
+
+  it("les signalements visant le compte et les invitations échues sont annoncés comme absents de l'export", () => {
+    const text = render(ConfidentialitePage).replace(/\s+/g, " ");
+    const registre = readFileSync(join(ROOT, "docs", "registre-traitements.md"), "utf8").replace(/\s+/g, " ");
+    const legal = readFileSync(join(ROOT, "docs", "legal.md"), "utf8").replace(/\s+/g, " ");
+    for (const source of [text, ACCOUNT_EXPORT_NOTE]) {
+      expect(source).toContain("signalements qui visent vos éléments");
+      expect(source).toContain("y compris un contenu modifié ou retiré depuis");
+      expect(source).toContain("invitations reçues encore valables");
+      expect(source).toContain("en attente d’effacement,");
+    }
+    for (const source of [registre, legal]) {
+      expect(source).toContain("collective_report_copies`, y compris le contenu modifié ou retiré depuis");
+    }
+    expect(legal).toContain("from public.collective_reports as r");
+    expect(legal).toContain("**Information des comptes**");
+    expect(legal).toContain("collective_reports_illegal_details");
   });
 
   it("les informations légales ne sont écrites qu'une fois, dans legal.ts", () => {
@@ -248,5 +332,66 @@ describe("pages légales", () => {
     for (const { path, text } of legalCode.filter((f) => !f.path.startsWith("src/app/"))) {
       for (const { href } of LEGAL_PAGES) expect(text.includes(`"${href}"`), `${path} écrit « ${href} »`).toBe(false);
     }
+  });
+});
+
+describe("textes de la bêta 2.1 (signalement, modération, mineurs)", () => {
+  const terms = () => render(ConditionsPage);
+  const privacy = () => render(ConfidentialitePage);
+  const byId = (id: string) => PROCESSINGS.find((p) => p.id === id);
+
+  it("un signalement par e-mail sans nom reçoit quand même l'accusé de réception et la décision", () => {
+    const provision = byId("contact")?.provision ?? "";
+    expect(provision).not.toContain("ni accusé de réception");
+    expect(provision).toContain("sans nom, il est quand même examiné");
+    expect(terms()).toContain("même si votre message ne comporte pas votre nom");
+    expect(render(MentionsLegalesPage)).toContain("même si son message ne comporte pas son nom");
+  });
+
+  it("la modération des profils, des cartes partagées et des comptes est un traitement décrit", () => {
+    const moderation = byId("moderation");
+    expect(moderation?.title).toBe(MODERATION_TITLE);
+    expect(moderation?.legalBasis).toContain("point f)");
+    expect(moderation?.legalBasis).toContain("point c)");
+    expect(moderation?.retention).toContain("un an");
+    for (const id of ["compte", "profil", "partage"]) expect(byId(id)?.purpose, id).toContain(MODERATION_TITLE);
+    expect(privacy()).toContain(escaped(MODERATION_TITLE));
+  });
+
+  it("le droit d'opposition est limité à la part fondée sur l'intérêt légitime", () => {
+    const html = privacy();
+    expect(html).toContain("pour leur part fondée sur l’intérêt légitime");
+    expect(html).toContain("Le droit d’opposition ne s’applique pas à ce qui repose sur une obligation légale");
+  });
+
+  it("un élément masqué reste visible de son auteur ; la décision manque si l'auteur supprime son compte", () => {
+    const html = terms();
+    expect(html).not.toContain("plus visible que des modérateurs");
+    expect(html).toContain("seuls son auteur et les modérateurs le voient encore");
+    expect(html).toContain("Si l’auteur supprime son compte avant la décision");
+    expect(byId("collective")?.recipients).toContain("si l’auteur supprime son compte avant la décision");
+  });
+
+  it("les règles de forme ne prétendent pas valoir pour les cartes partagées", () => {
+    const html = terms();
+    expect(html).not.toContain("refusés dans tous les textes");
+    expect(html).toContain("pas dans le nom ni le contenu des cartes, partagées ou non");
+  });
+
+  it("mineurs : un parent peut demander la suspension ou la suppression du compte ; changements annoncés à l'avance", () => {
+    expect(terms()).toContain("la suspension ou la suppression du compte d’un mineur de moins de");
+    expect(privacy()).toContain("la suspension ou la suppression du compte d’un mineur de moins de");
+    expect(terms()).toContain("informés à l’avance par e-mail");
+  });
+
+  it("les avatars ne sont pas présentés comme stockés dans la région vérifiée de la base", () => {
+    expect(DATA_PROVIDER.avatarStorage).toContain("ne confirme pas expressément");
+    expect(render(MentionsLegalesPage)).toContain(DATA_PROVIDER.avatarStorage);
+    expect(byId("profil")?.location).toContain(DATA_PROVIDER.avatarStorage);
+  });
+
+  it("le registre porte la même date de mise à jour que les pages légales", () => {
+    const registre = readFileSync(join(ROOT, "docs", "registre-traitements.md"), "utf8");
+    expect(registre).toContain(`Dernière mise à jour : ${LEGAL_UPDATED_ON}.`);
   });
 });

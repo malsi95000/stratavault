@@ -99,6 +99,26 @@ function Wrap({ wrapRef, children }: { wrapRef: RefObject<HTMLDivElement | null>
   );
 }
 
+/**
+ * Barre d'outils réduite à Sélection et Gomme : carte collective, compte qui peut seulement supprimer
+ * ses éléments (contributions suspendues, ou compte sans profil).
+ */
+export function EraseToolbar() {
+  const tool = useEditorStore((s) => s.tool);
+  const setTool = useEditorStore((s) => s.setTool);
+  return (
+    <div
+      role="toolbar"
+      aria-label="Outils"
+      aria-orientation="vertical"
+      className="absolute top-16 left-3 z-3 flex flex-col gap-2 [@media(max-width:640px)]:top-14"
+    >
+      <Slot tool="select" current={tool} onClick={() => setTool("select")} />
+      <Slot tool="gomme" current={tool} onClick={() => setTool("gomme")} />
+    </div>
+  );
+}
+
 /** Barre d'outils à gauche de la carte, avec les menus des balises, du flux et du texte. */
 export default function Toolbar() {
   const tool = useEditorStore((s) => s.tool);

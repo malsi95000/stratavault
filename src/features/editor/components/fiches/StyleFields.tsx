@@ -2,7 +2,7 @@
 
 import { styleOf } from "@/features/map-doc/styles";
 import type { ElementRef } from "@/features/map-doc/types";
-import { useEditorStore } from "@/features/editor/store";
+import { extrasAllowed, useEditorStore } from "@/features/editor/store";
 import CategoryField from "./CategoryField";
 import ColorField from "./ColorField";
 import { H3 } from "./styles";
@@ -14,6 +14,9 @@ import { H3 } from "./styles";
 export default function StyleFields({ of }: { of: ElementRef }) {
   const style = useEditorStore((s) => styleOf(s.doc, of));
   const setElementStyle = useEditorStore((s) => s.setElementStyle);
+  const allowed = useEditorStore(extrasAllowed);
+  // Carte qui n'accepte ni couleurs ni catégories (carte collective) : rien à montrer.
+  if (!allowed) return null;
   return (
     <section aria-label="Apparence sur la carte">
       <h3 className={H3}>Sur la carte</h3>

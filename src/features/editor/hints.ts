@@ -50,3 +50,6 @@ export const hintPingType = (type: PingType) => `${PING_LABELS[type]} : cliquez 
 export const HINT_FICHES_FULL = "Nombre maximal de fiches atteint : supprimez-en avant d’en ajouter.";
 /** Plafond des catégories de la carte atteint. */
 export const HINT_CATEGORIES_FULL = "Nombre maximal de catégories atteint : supprimez-en avant d’en ajouter.";
+
+/** Carte partagée en lecture seule : la modification demandée est ignorée. */
+export const HINT_READ_ONLY = "Lecture seule : cette carte ne peut pas être modifiée pour le moment.";

@@ -8,9 +8,10 @@ import type { MapCover } from "./cover";
  * - too-large : carte au-delà de la taille maximale ;
  * - quota : espace du compte plein (nombre de cartes ou volume total) ;
  * - conflict : le contenu a changé depuis la version attendue (autre appareil) : rien n'est écrasé ;
+ * - locked : carte partagée qu'un autre membre modifie (verrou d'édition) : rien n'est écrit pour l'instant ;
  * - unavailable : base de données injoignable ou erreur inattendue.
  */
-export type MapActionError = "unauthorized" | "invalid" | "too-large" | "quota" | "conflict" | "unavailable";
+export type MapActionError = "unauthorized" | "invalid" | "too-large" | "quota" | "conflict" | "locked" | "unavailable";
 
 export type MapActionResult<T> = { ok: true; value: T } | { ok: false; error: MapActionError };
 

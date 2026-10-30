@@ -301,6 +301,8 @@ describe("classifyDbError", () => {
     expect(classifyDbError({ code: "P0001", message: "maps_too_large" })).toBe("too-large");
     expect(classifyDbError({ code: "P0001", message: "maps_invalid" })).toBe("invalid");
     expect(classifyDbError({ code: "P0001", message: "maps_conflict" })).toBe("conflict");
+    // Carte partagée : un autre membre tient le verrou d'édition.
+    expect(classifyDbError({ code: "P0001", message: "maps_locked" })).toBe("locked");
     expect(classifyDbError({ code: "P0001", message: "autre" })).toBe("unavailable");
     expect(classifyDbError({ code: "P0001", message: "toString" })).toBe("unavailable");
     // Fonction appelée sans utilisateur (auth.uid() nul).

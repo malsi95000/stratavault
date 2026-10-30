@@ -4,7 +4,7 @@ import { deleteDB, openDB } from "idb";
 import { describe, expect, it, vi } from "vitest";
 import { USER_DB_PREFIX } from "@/features/storage";
 import { createIndexedDbRepository } from "@/features/storage";
-import { activateStorage, activeStorageMode, finishSignOut, flush, getPersistence, prepareSignOut } from "./storageSession";
+import { activateStorage, activeStorageMode, finishSignOut, flush, getPersistence, prepareSignOut, suspendStorage } from "./storageSession";
 import type { SignOutChecks } from "./storageSession";
 import { useEditorStore } from "./store";
 
@@ -57,6 +57,39 @@ async function signOutFully(userId: string, answers: Parameters<typeof checks>[0
 }
 
 describe("session de stockage", () => {
+  it("éditeur coopératif : la session du compte envoie ses modifications, puis se ferme", async () => {
+    activateStorage({ kind: "account", userId: ALICE });
+    await getPersistence().hydrate();
+    useEditorStore.getState().setCountryNote("FRA", "brouillon d'Alice");
+    expect(await suspendStorage()).toBe(true);
+    expect(activeStorageMode()).toBe(null);
+    expect(useEditorStore.getState().doc.notes).toEqual({});
+    expect(await suspendStorage()).toBe(true);
+    // Rouverte ensuite : le brouillon envoyé avant la fermeture est relu.
+    activateStorage({ kind: "account", userId: ALICE });
+    await getPersistence().hydrate();
+    expect(useEditorStore.getState().doc.notes).toEqual({ FRA: "brouillon d'Alice" });
+  });
+
+  it("session réactivée pendant sa suspension (retour rapide sur /carte) : elle reste ouverte", async () => {
+    const mode = { kind: "account", userId: ALICE } as const;
+    activateStorage(mode);
+    await getPersistence().hydrate();
+    const persistence = getPersistence();
+    useEditorStore.getState().setCountryNote("FRA", "en cours");
+    const suspended = suspendStorage();
+    // La page /carte se raffiche avant la fin de l'envoi.
+    activateStorage(mode);
+    expect(await suspended).toBe(false);
+    expect(activeStorageMode()).toEqual(mode);
+    expect(getPersistence()).toBe(persistence);
+    expect(useEditorStore.getState().doc.notes).toEqual({ FRA: "en cours" });
+    // La persistance continue d'écrire.
+    useEditorStore.getState().setCountryNote("FRA", "suite");
+    expect(await flush()).toBe(true);
+    expect(await suspendStorage()).toBe(true);
+  });
+
   it("changer de compte vide l'éditeur : aucune carte d'un compte ne s'affiche dans un autre", async () => {
     activateStorage({ kind: "account", userId: ALICE });
     await getPersistence().hydrate();
